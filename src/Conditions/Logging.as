@@ -14,10 +14,7 @@ namespace logging {
     [Setting category="z~DEV" name="Write a copy of each log line to file" hidden]
     bool S_writeLogToFile = false;
 
-    /***********************************************/
     [Setting category="z~DEV" name="Show default OP logs" hidden] bool S_showDefaultLogs = true;
-    /***********************************************/ // Change this wen using _build.py
-
 
     [Setting category="z~DEV" name="Show Custom logs"   hidden] bool DEV_S_sCustom   = true;
     [Setting category="z~DEV" name="Show Debug logs"    hidden] bool DEV_S_sDebug    = true;
@@ -37,12 +34,11 @@ namespace logging {
     const string kLatestBuildFile = "latest_build.txt";
     const string kBuildJsonFile   = "build.json";
     const uint   kRetentionDays   = 14;
-    const uint   kOneDayMs        = 86400000; // 24h in ms
+    const uint   kOneDayMs        = 86400000;
 
     string g_diagFilePath;
     int    lastSliderValue = DEV_S_sLogLevelSlider;
 
-    /* settings UI tab */
     [SettingsTab name="Logs" icon="DevTo" order="99999999999999999999999999999999999999999999999999"]
     void RT_LOGs() {
         if (UI::BeginChild("Logging Settings", vec2(0, 0), true)) {
@@ -110,7 +106,7 @@ namespace logging {
             string baseName = fullPath.SubStr(absFolder.Length);
             if (!baseName.StartsWith(kDiagPrefix)) continue;
 
-            string dateStr = baseName.SubStr(kDiagPrefix.Length, 10);  // YYYY-MM-DD
+            string dateStr = baseName.SubStr(kDiagPrefix.Length, 10);
             if (dateStr < earliestKeep) IO::Delete(fullPath);
         }
     }
@@ -169,12 +165,12 @@ namespace logging {
 
 }
 
-void log(const string &in msg,
-         LogLevel level     = LogLevel::Info,
-         int      line      = -1,
-         string   _fnName   = "",
-         string   _tag      = "",
-         string   _tagColor = "\\$f80")
+void log(const string &in msg, LogLevel level     = LogLevel::Info, 168, "UnknownFunction", string   _tag      = "", string   _tagColor = "\\$f80")
+
+
+
+
+
 {
     string lineInfo = line >= 0 ? " " + tostring(line) : "";
     if (lineInfo.Length == 2) lineInfo += "  ";
@@ -220,8 +216,4 @@ void log(const string &in msg,
     }
 }
 
-// Plugin entry for the logging
 auto logging_initializer = startnew(logging::Initialise);
-// Unload handler to unregister the module
-// class logging_OnUnload { ~logging_OnUnload() { print("run this if I ever need to unload something in the logging"); } }
-// logging_OnUnload logging_unloader;

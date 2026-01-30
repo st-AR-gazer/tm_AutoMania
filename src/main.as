@@ -1,27 +1,23 @@
-const string  pluginColor = "\\$F0A";
-const string  pluginIcon  = Icons::Code;
-Meta::Plugin@ pluginMeta  = Meta::ExecutingPlugin();
-const string  pluginTitle = pluginColor + pluginIcon + "\\$G " + pluginMeta.Name;
-
 void Main() {
-    
+    automata::InitRegistry();
+    automata::ReloadFlows();
+
+    automata::Helpers::CrashWatch::OnPluginStartupRecovery();
+
+    automata::AutoStart::Begin();
+
+    log("AutoMania initialized.", LogLevel::Info, 9, "Main");
 }
 
 void RenderInterface() {
-    if (!S_Enabled || (S_HideWithGame && !UI::IsGameUIVisible()) || (S_HideWithOP && !UI::IsOverlayShown())) { return; }
+    automata::Render_MainWindow();
+    automata::UI_FlowEditor::Render();
 
-    if (UI::Begin(pluginTitle + "###main-" + pluginMeta.ID, S_Enabled, UI::WindowFlags::None)) {
-        RenderWindow();
-    }
-    UI::End();
+    UiNav::DevUI::Render();
 }
 
 void RenderMenu() {
-    if (UI::MenuItem(pluginTitle, "", S_Enabled)) {
-        S_Enabled = !S_Enabled;
+    if (UI::MenuItem("AutoMania", "", automata::gShowMain)) {
+        automata::ToggleMainWindow();
     }
-}
-
-void RenderWindow() {
-    
 }
