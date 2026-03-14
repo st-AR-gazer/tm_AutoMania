@@ -31,44 +31,6 @@ void _EnsureDirsOnce() {
     gDirsEnsured = true;
 }
 
-bool _WriteTextFile(const string &in absPath, const string &in data) {
-    try {
-        IO::File f(absPath, IO::FileMode::Write);
-        f.Write(data);
-        f.Close();
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-bool _AppendLine(const string &in absPath, const string &in line) {
-    try {
-        IO::FileMode mode = IO::FileExists(absPath) ? IO::FileMode::Append : IO::FileMode::Write;
-        IO::File f(absPath, mode);
-        f.Write(line + "\n");
-        f.Close();
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-string _ReadTextFile(const string &in absPath) {
-    try { return _IO::File::ReadFileToEnd(absPath, false); } catch { return ""; }
-}
-
-Json::Value@ _ReadJson(const string &in absPath) {
-    if (!IO::FileExists(absPath)) return null;
-    string txt = _ReadTextFile(absPath);
-    if (txt.Length == 0) return null;
-    return Json::Parse(txt);
-}
-
-bool _WriteJson(const string &in absPath, Json::Value@ v, bool pretty = false) {
-    return _WriteTextFile(absPath, Json::Write(v, pretty));
-}
-
 string _SafeLower(const string &in s) { return s.ToLower(); }
 
 string _BuildIntentDedupeKey(FlowRun@ run,
@@ -119,8 +81,8 @@ void WriteIntent(FlowRun@ run,
         j["stepIndex"] = int(run.ctx.stepIndex);
     }
 
-    bool ok = _WriteJson(_IntentAbs(), j, false);
-    if (!ok) log("CrashWatch: failed to write intent file.", LogLevel::Warn, 123, "WriteIntent");
+    bool ok = Helpers::FileIO::WriteJson(_IntentAbs(), j, false);
+    if (!ok) log("CrashWatch: failed to write intent file.", LogLevel::Warn, 85, "WriteIntent");
 }
 
 void ClearIntent(const string &in phase = "cleared", const string &in note = "") {
@@ -133,7 +95,7 @@ void ClearIntent(const string &in phase = "cleared", const string &in note = "")
         return;
     }
 
-    Json::Value@ j = _ReadJson(p);
+    Json::Value@ j = Helpers::FileIO::ReadJson(p);
     if (j is null || j.GetType() != Json::Type::Object) @j = Json::Object();
 
     j["schema"] = kSchemaVersion;
@@ -141,7 +103,7 @@ void ClearIntent(const string &in phase = "cleared", const string &in note = "")
     j["clearedAtMs"] = int(Time::Now);
     if (note.Length > 0) j["note"] = note;
 
-    _WriteJson(p, j, false);
+    Helpers::FileIO::WriteJson(p, j, false);
 
     gLastIntentKey = "";
     gLastIntentWriteMs = 0;
@@ -179,16 +141,17 @@ void OnPluginStartupRecovery() {
 
     _EnsureDirsOnce();
 
-    Json::Value@ intent = _ReadJson(_IntentAbs());
+    Json::Value@ intent = Helpers::FileIO::ReadJson(_IntentAbs());
     if (intent is null || intent.GetType() != Json::Type::Object) return;
 
     string intentPhase = intent.HasKey("phase") ? string(intent["phase"]).ToLower() : "";
     string blk = intent.HasKey("blockName") ? string(intent["blockName"]) : "";
     string var = intent.HasKey("variantKey") ? string(intent["variantKey"]) : "";
 
-    Json::Value@ st = _ReadJson(_StatusAbsStorage());
+    Json::Value@ st = null;
+    try { @st = Helpers::FileIO::ReadJson(_StatusAbsStorage()); } catch {}
     if (st is null) {
-        st = _ReadJson(_StatusAbsMirror());
+        try { @st = Helpers::FileIO::ReadJson(_StatusAbsMirror()); } catch {}
     }
 
     bool statusUnfinished = _PrevRunLooksUnfinished(st);
@@ -204,11 +167,9 @@ void OnPluginStartupRecovery() {
         intent["phase"] = "invalid";
         intent["invalidAtMs"] = int(Time::Now);
         intent["note"] = "CrashWatch: recovery wanted but intent missing blockName/variantKey.";
-        _WriteJson(_IntentAbs(), intent, false);
+        Helpers::FileIO::WriteJson(_IntentAbs(), intent, false);
 
-        log("CrashWatch: recovery wanted but intent missing blockName/variantKey. phase='"
-            + intentPhase + "' statusUnfinished=" + tostring(statusUnfinished), LogLevel::Warn, 209, "OnPluginStartupRecovery");
-
+        log("CrashWatch: recovery wanted but intent missing blockName/variantKey. phase='" + intentPhase + "' statusUnfinished=" + tostring(statusUnfinished), LogLevel::Warn, 171, "OnPluginStartupRecovery");
 
         return;
     }
@@ -235,7 +196,7 @@ void OnPluginStartupRecovery() {
             if (r.HasKey("stepCmd"))   ev["stepCmd"]   = string(r["stepCmd"]);
         }
     }
-    _AppendLine(_CrashLogAbs(), Json::Write(ev, false));
+    Helpers::FileIO::AppendLine(_CrashLogAbs(), Json::Write(ev, false));
 
     intent["schema"] = kSchemaVersion;
     intent["phase"] = "recorded";
@@ -243,24 +204,19 @@ void OnPluginStartupRecovery() {
     intent["recordedFromPhase"] = intentPhase;
     intent["recordedReason"] = (intentPhase == "intent" ? "phase-intent" : "status-unfinished-fallback");
     intent["addedSkip"] = added;
-    _WriteJson(_IntentAbs(), intent, false);
+    Helpers::FileIO::WriteJson(_IntentAbs(), intent, false);
 
     if (statusUnfinished) {
         _MarkStatusCrashed(st, "Previous run ended unexpectedly (CrashWatch recovery).");
-        _WriteJson(_StatusAbsStorage(), st, false);
-        _WriteJson(_StatusAbsMirror(), st, false);
+        Helpers::FileIO::WriteJson(_StatusAbsStorage(), st, false);
+        Helpers::FileIO::WriteJson(_StatusAbsMirror(), st, false);
     }
 
     log("CrashWatch: recovered previous run"
         + " | last intent: " + blk + " / " + var
         + (added ? " [added]" : " [already-known]")
         + " | statusUnfinished=" + tostring(statusUnfinished)
-        + " | intentPhaseWas='" + intentPhase + "'", LogLevel::Info, 253, "OnPluginStartupRecovery");
-
-
-
-
-
+        + " | intentPhaseWas='" + intentPhase + "'", LogLevel::Info, 216, "OnPluginStartupRecovery");
 }
 
 }}}

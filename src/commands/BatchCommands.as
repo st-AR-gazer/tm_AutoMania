@@ -1,33 +1,5 @@
 namespace automata {
 
-bool _ReadBoolArg(Json::Value@ args, const string &in key, bool defVal) {
-    if (args is null || !args.HasKey(key)) return defVal;
-    auto v = args[key];
-    auto t = v.GetType();
-
-    if (t == Json::Type::Boolean) return bool(v);
-
-    if (t == Json::Type::String) {
-        string s = string(v).ToLower().Trim();
-        if (s == "true" || s == "1" || s == "yes" || s == "y") return true;
-        if (s == "false" || s == "0" || s == "no"  || s == "n") return false;
-        return defVal;
-    }
-
-    try { int n = int(v); return n != 0; } catch {}
-    try { float f = float(v); return f != 0.0f; } catch {}
-
-    return defVal;
-}
-
-string _ReadStrArg(Json::Value@ args, const string &in key, const string &in defVal) {
-    if (args is null || !args.HasKey(key)) return defVal;
-    auto v = args[key];
-    if (v.GetType() == Json::Type::String) return string(v);
-    try { return string(v); } catch {}
-    return defVal;
-}
-
 Json::Value@ _NormalizeContainsArg(Json::Value@ rawContains) {
     if (rawContains is null) return null;
     auto t = rawContains.GetType();
@@ -52,7 +24,7 @@ Json::Value@ _NormalizeContainsArg(Json::Value@ rawContains) {
 void _KickIndexBuildIfNeeded() {
     string err;
     bool ok = Helpers::Blocks::EnsureIndexBuilt(err);
-    if (!ok && err.Length > 0) log("EnsureIndexBuilt: " + err, LogLevel::Warn, 55, "_KickIndexBuildIfNeeded");
+    if (!ok && err.Length > 0) log("EnsureIndexBuilt: " + err, LogLevel::Warn, 27, "_KickIndexBuildIfNeeded");
 }
 
 bool _WaitIndexReady(int timeoutMs = 2000) {
@@ -261,22 +233,21 @@ string _BC_MakeExistsKey(const string &in relFolderNorm, const string &in savePr
 }
 
 bool Cmd_BatchBuildByNameMatch(FlowRun@ run, Json::Value@ args) {    
-    bool customOnly = _ReadBoolArg(args, "customOnly", true);
-    bool nadeoOnly  = _ReadBoolArg(args, "nadeoOnly",  false);
-    string prefix = _ReadStrArg(args, "prefix", "");
-    string suffix = _ReadStrArg(args, "suffix", "");
+    bool customOnly = Helpers::Args::ReadBool(args, "customOnly", true);
+    bool nadeoOnly  = Helpers::Args::ReadBool(args, "nadeoOnly",  false);
+    string prefix = Helpers::Args::ReadStr(args, "prefix", "");
+    string suffix = Helpers::Args::ReadStr(args, "suffix", "");
 
     Json::Value@ containsArg = null;
     if (args !is null && args.HasKey("contains")) @containsArg = _NormalizeContainsArg(args["contains"]);
-    bool containsAny = _ReadBoolArg(args, "containsAny", false);
+    bool containsAny = Helpers::Args::ReadBool(args, "containsAny", false);
 
-    bool   skipIfExists      = _ReadBoolArg(args, "skipIfExists", false);
-    string savePrefix        = _ReadStrArg(args, "saveLocationPrefix",
-                                 _ReadStrArg(args, "locationPrefix", "AutoMania/block_dump/Nadeo"));
+    bool   skipIfExists      = Helpers::Args::ReadBool(args, "skipIfExists", false);
+    string savePrefix        = Helpers::Args::ReadFirstStr(args, {"saveLocationPrefix", "locationPrefix"}, "AutoMania/block_dump/Nadeo");
     savePrefix = automata::Helpers::SaveFile::_NormalizeRel(savePrefix);
-    bool   includeCustomRoot = _ReadBoolArg(args, "includeCustomRoot", false);
-    bool   flattenLeafDir    = _ReadBoolArg(args, "saveFlattenLeaf",  true);
-    string endStringRaw      = _ReadStrArg(args, "endString", "");
+    bool   includeCustomRoot = Helpers::Args::ReadBool(args, "includeCustomRoot", false);
+    bool   flattenLeafDir    = Helpers::Args::ReadBool(args, "saveFlattenLeaf",  true);
+    string endStringRaw      = Helpers::Args::ReadStr(args, "endString", "");
     string endStringSan      = automata::Helpers::SaveFile::_SanitizeSuffixForFile(endStringRaw);
     
     if (Helpers::Blocks::gNamesLower.Length == 0) {
@@ -359,7 +330,10 @@ bool Cmd_BatchBuildByNameMatch(FlowRun@ run, Json::Value@ args) {
         log("Batch prefilter: skipIfExists=true — indexed " + tostring(existingCount) + " existing outputs in "
             + tostring(int(tIndex - t0)) + "ms; filtered " + tostring(skipped) + " of "
             + tostring(skipped + kept.Length) + " in " + tostring(int(tEnd - tIndex)) + "ms; total "
-            + tostring(int(tEnd - t0)) + "ms.", LogLevel::Info, 359, "Cmd_BatchBuildByNameMatch");
+            + tostring(int(tEnd - t0)) + "ms.", LogLevel::Info, 330, "Cmd_BatchBuildByNameMatch");
+
+
+
 
 
 
@@ -383,7 +357,7 @@ bool Cmd_BatchBuildByNameMatch(FlowRun@ run, Json::Value@ args) {
     if (suffix.Length > 0) msg += " suffix='" + suffix + "'";
     if (containsArg !is null) msg += " contains=" + Json::Write(containsArg, false) + (containsAny ? " (any)" : " (all)");
     if (skipIfExists) msg += " [prefilter skipIfExists]";
-    log(msg, LogLevel::Info, 383, "Cmd_BatchBuildByNameMatch");
+    log(msg, LogLevel::Info, 357, "Cmd_BatchBuildByNameMatch");
 
     return true;
 }
@@ -450,7 +424,7 @@ bool Cmd_BatchLoopBegin(FlowRun@ run, Json::Value@ args) {
     run.ctx.loopEndStep   = endIdx;
 
     if (total <= 0) {
-        log("BatchLoop: no items — skipping loop body.", LogLevel::Info, 450, "Cmd_BatchLoopBegin");
+        log("BatchLoop: no items — skipping loop body.", LogLevel::Info, 424, "Cmd_BatchLoopBegin");
         run.ctx.jumpToStep = endIdx + 1;
         run.ctx.loopActive = false;
         return true;
@@ -461,7 +435,7 @@ bool Cmd_BatchLoopBegin(FlowRun@ run, Json::Value@ args) {
 
     string nameNow;
     if (!_BatchNameAt(run.ctx, 0, nameNow)) {
-        log("BatchLoop: failed to resolve name at #0", LogLevel::Warn, 461, "Cmd_BatchLoopBegin");
+        log("BatchLoop: failed to resolve name at #0", LogLevel::Warn, 435, "Cmd_BatchLoopBegin");
         nameNow = "";
     }
     run.ctx.Set("blockName", nameNow);
@@ -471,7 +445,7 @@ bool Cmd_BatchLoopBegin(FlowRun@ run, Json::Value@ args) {
 
     string err;
     if (!_SetCurrentByNameWithRetry(nameNow, err)) {
-        log("BatchLoop: failed to set current block '" + nameNow + "'. " + (err.Length > 0 ? err : ""), LogLevel::Warn, 471, "Cmd_BatchLoopBegin");
+        log("BatchLoop: failed to set current block '" + nameNow + "'. " + (err.Length > 0 ? err : ""), LogLevel::Warn, 445, "Cmd_BatchLoopBegin");
     }
 
     return true;
@@ -486,7 +460,7 @@ bool Cmd_BatchLoopEnd(FlowRun@ run, Json::Value@ args) {
         run.ctx.batchIndex = next;
         string nameNow;
         if (!_BatchNameAt(run.ctx, next, nameNow)) {
-            log("BatchLoop: failed to resolve name at #" + tostring(next), LogLevel::Warn, 486, "Cmd_BatchLoopEnd");
+            log("BatchLoop: failed to resolve name at #" + tostring(next), LogLevel::Warn, 460, "Cmd_BatchLoopEnd");
             nameNow = "";
         }
         run.ctx.Set("blockName", nameNow);
@@ -496,7 +470,7 @@ bool Cmd_BatchLoopEnd(FlowRun@ run, Json::Value@ args) {
 
         string err;
         if (!_SetCurrentByNameWithRetry(nameNow, err)) {
-            log("BatchLoop: failed to set current block '" + nameNow + "'. " + (err.Length > 0 ? err : ""), LogLevel::Warn, 496, "Cmd_BatchLoopEnd");
+            log("BatchLoop: failed to set current block '" + nameNow + "'. " + (err.Length > 0 ? err : ""), LogLevel::Warn, 470, "Cmd_BatchLoopEnd");
         }
 
         if (run.ctx.loopStartStep >= 0) run.ctx.jumpToStep = run.ctx.loopStartStep;

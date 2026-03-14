@@ -74,6 +74,10 @@ void _LogApiResult(CGameManiaPlanet@ app, const string &in ctx) {
 
 
 
+
+
+
+
 }
 
 bool _ReturnToMenuAndWaitReady(FlowRun@ run, CGameManiaPlanet@ app, uint timeoutMs, bool closeInGameMenu) {
@@ -89,7 +93,7 @@ bool _ReturnToMenuAndWaitReady(FlowRun@ run, CGameManiaPlanet@ app, uint timeout
                 && app.Network.PlaygroundClientScriptAPI.IsInGameMenuDisplayed)
             {
                 if (app.Network.PlaygroundInterfaceScriptHandler !is null) {
-                    log("OpenMapEditor: in-game menu displayed -> closing with Quit.", LogLevel::Info, 88, "_ReturnToMenuAndWaitReady");
+                    log("OpenMapEditor: in-game menu displayed -> closing with Quit.", LogLevel::Info, 92, "_ReturnToMenuAndWaitReady");
                     app.Network.PlaygroundInterfaceScriptHandler.CloseInGameMenu(
                         CGameScriptHandlerPlaygroundInterface::EInGameMenuResult::Quit
                     );
@@ -111,14 +115,16 @@ bool _ReturnToMenuAndWaitReady(FlowRun@ run, CGameManiaPlanet@ app, uint timeout
 
         if (Time::Now - t0 > timeoutMs) {
             run.ctx.lastError = "open_map_editor: timed out waiting for main menu readiness (Title API + menus).";
-            log(run.ctx.lastError, LogLevel::Warn, 110, "_ReturnToMenuAndWaitReady");
+            log(run.ctx.lastError, LogLevel::Warn, 114, "_ReturnToMenuAndWaitReady");
             return false;
         }
 
         if (Time::Now >= nextLog) {
             log("OpenMapEditor: waiting for menu readiness..."
                 + " TitleAPI.IsReady=" + tostring(apiReady)
-                + " HasMenus=" + tostring(menusOk), LogLevel::Debug, 115, "_ReturnToMenuAndWaitReady");
+                + " HasMenus=" + tostring(menusOk), LogLevel::Debug, 119, "_ReturnToMenuAndWaitReady");
+
+
 
 
 
@@ -143,7 +149,7 @@ bool _WaitForRequestedEditor(FlowRun@ run, CGameManiaPlanet@ app, uint timeoutMs
         if (Time::Now - t0 > timeoutMs) {
             run.ctx.lastError = "open_map_editor: timed out waiting for editor ready after " + phaseTag
                 + " (Editor=" + _EditorTypeStr(app) + ").";
-            log(run.ctx.lastError, LogLevel::Warn, 140, "_WaitForRequestedEditor");
+            log(run.ctx.lastError, LogLevel::Warn, 146, "_WaitForRequestedEditor");
             return false;
         }
 
@@ -151,7 +157,10 @@ bool _WaitForRequestedEditor(FlowRun@ run, CGameManiaPlanet@ app, uint timeoutMs
             log("OpenMapEditor: waiting for editor..."
                 + " phase=" + phaseTag
                 + " requested=" + (useSimpleEditor ? "simple" : "advanced")
-                + " currentEditor=" + _EditorTypeStr(app), LogLevel::Debug, 145, "_WaitForRequestedEditor");
+                + " currentEditor=" + _EditorTypeStr(app), LogLevel::Debug, 151, "_WaitForRequestedEditor");
+
+
+
 
 
 
@@ -196,7 +205,14 @@ bool _StartNewMapViaEditNewMap2(FlowRun@ run, CGameManiaPlanet@ app, Json::Value
             + "', playerModel='" + playerModel
             + "', mapType='" + mt
             + "', useSimple=" + tostring(useSimple)
-            + ")", LogLevel::Info, 183, "_StartNewMapViaEditNewMap2");
+            + ")", LogLevel::Info, 192, "_StartNewMapViaEditNewMap2");
+
+
+
+
+
+
+
 
 
 
@@ -224,7 +240,7 @@ bool _StartNewMapViaEditNewMap2(FlowRun@ run, CGameManiaPlanet@ app, Json::Value
         if (_WaitForRequestedEditor(run, app, timeoutMs, useSimple, "EditNewMap2(" + mt + ")")) return true;
         
         if (i + 1 < mapTypes.Length) {
-            log("OpenMapEditor: EditNewMap2 attempt failed; retrying with alternate MapType casing.", LogLevel::Warn, 211, "_StartNewMapViaEditNewMap2");
+            log("OpenMapEditor: EditNewMap2 attempt failed; retrying with alternate MapType casing.", LogLevel::Warn, 227, "_StartNewMapViaEditNewMap2");
             if (!_ReturnToMenuAndWaitReady(run, app, timeoutMs, true)) return false;
             if (_ShouldAbort(run)) return false;
         }
@@ -238,14 +254,14 @@ bool Cmd_OpenMapEditor(FlowRun@ run, Json::Value@ args) {
 
     if (!Permissions::OpenAdvancedMapEditor()) {
         run.ctx.lastError = "open_map_editor: missing permission Permissions::OpenAdvancedMapEditor().";
-        log(run.ctx.lastError, LogLevel::Error, 225, "Cmd_OpenMapEditor");
+        log(run.ctx.lastError, LogLevel::Error, 241, "Cmd_OpenMapEditor");
         return false;
     }
 
     auto app = cast<CGameManiaPlanet>(GetApp());
     if (app is null) {
         run.ctx.lastError = "open_map_editor: GetApp() is not a CGameManiaPlanet.";
-        log(run.ctx.lastError, LogLevel::Error, 232, "Cmd_OpenMapEditor");
+        log(run.ctx.lastError, LogLevel::Error, 248, "Cmd_OpenMapEditor");
         return false;
     }
 
@@ -255,7 +271,7 @@ bool Cmd_OpenMapEditor(FlowRun@ run, Json::Value@ args) {
     bool forceNewMap     = _ArgBool(args, "forceNewMap", false);
 
     if (_IsAnyEditorOpen(app) && !forceNewMap) {
-        log("OpenMapEditor: already in an editor (Editor=" + _EditorTypeStr(app) + "); not forcing a new map.", LogLevel::Info, 242, "Cmd_OpenMapEditor");
+        log("OpenMapEditor: already in an editor (Editor=" + _EditorTypeStr(app) + "); not forcing a new map.", LogLevel::Info, 258, "Cmd_OpenMapEditor");
 
         return true;
     }
@@ -264,7 +280,11 @@ bool Cmd_OpenMapEditor(FlowRun@ run, Json::Value@ args) {
         + " timeoutMs=" + tostring(timeoutMs)
         + " backToMenu=" + tostring(backToMenu)
         + " closeInGameMenu=" + tostring(closeInGameMenu)
-        + " forceNewMap=" + tostring(forceNewMap), LogLevel::Info, 247, "Cmd_OpenMapEditor");
+        + " forceNewMap=" + tostring(forceNewMap), LogLevel::Info, 263, "Cmd_OpenMapEditor");
+
+
+
+
 
 
 
@@ -290,12 +310,12 @@ bool Cmd_OpenMapEditor(FlowRun@ run, Json::Value@ args) {
     if (_ShouldAbort(run)) return true;
 
     if (ok) {
-        log("OpenMapEditor: success.", LogLevel::Info, 273, "Cmd_OpenMapEditor");
+        log("OpenMapEditor: success.", LogLevel::Info, 293, "Cmd_OpenMapEditor");
         return true;
     }
 
     if (run.ctx.lastError.Length == 0) run.ctx.lastError = "open_map_editor: failed to open editor (unknown reason).";
-    log("OpenMapEditor: FAILED. lastError=" + run.ctx.lastError, LogLevel::Error, 278, "Cmd_OpenMapEditor");
+    log("OpenMapEditor: FAILED. lastError=" + run.ctx.lastError, LogLevel::Error, 298, "Cmd_OpenMapEditor");
     return false;
 }
 

@@ -88,7 +88,7 @@ class MouseController {
 
     void Move(int x, int y) {
         if (move is null) return;
-        print("Moving to: " + x + ", " + y);
+        log("Moving to: " + x + ", " + y, LogLevel::Debug, 91, "Move");
         move.Call(x, y);
     }
 
@@ -110,7 +110,7 @@ class MouseController {
         if (get_position_x !is null) {
             return get_position_x.CallInt32();
         }
-        print("Failed to get position x (get_position_x is null)");
+        log("Failed to get position x (get_position_x is null)", LogLevel::Warn, 113, "GetPositionX");
         return 0;
     }
 
@@ -118,7 +118,7 @@ class MouseController {
         if (get_position_y !is null) {
             return get_position_y.CallInt32();
         }
-        print("Failed to get position y (get_position_y is null)");
+        log("Failed to get position y (get_position_y is null)", LogLevel::Warn, 121, "GetPositionY");
         return 0;
     }
 

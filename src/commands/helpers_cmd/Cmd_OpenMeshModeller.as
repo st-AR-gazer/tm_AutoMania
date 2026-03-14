@@ -21,41 +21,12 @@ const string CTX_MM_PENDING_VARIANT = "mm.pending.variant";
 const string CTX_MM_PENDING_MODE    = "mm.pending.mode";
 const string CTX_MM_PENDING_PREFER  = "mm.pending.prefer";
 
-string _ToLower(const string &in s) { return s.ToLower(); }
-
-bool _ReadBoolArg(const Json::Value@ args, const string &in key, bool def) {
-    if (args is null || !args.HasKey(key)) return def;
-    try { return bool(args[key]); } catch {}
-    try { return int(args[key]) != 0; } catch {}
-    try {
-        string s = string(args[key]).ToLower().Trim();
-        if (s == "1" || s == "true" || s == "yes" || s == "y" || s == "on") return true;
-        if (s == "0" || s == "false" || s == "no"  || s == "n" || s == "off") return false;
-    } catch {}
-    return def;
-}
-
 string _ParsePrefer(const Json::Value@ args, const string &in defaultPref) {
     string pref = defaultPref;
     if (args !is null && args.HasKey("prefer")) pref = string(args["prefer"]);
-    pref = _ToLower(pref);
+    pref = pref.ToLower();
     if (pref != "edit" && pref != "new" && pref != "auto") pref = "auto";
     return pref;
-}
-
-bool _ArgsHasVariantSelection(const Json::Value@ args) {
-    if (args is null) return false;
-    return args.HasKey("variantIndex") || args.HasKey("variantKey");
-}
-
-string _ReadVariantKeyArg(const Json::Value@ args) {
-    string variantKey = "";
-    if (args is null) return variantKey;
-
-    if (args.HasKey("variantKey")) { try { variantKey = string(args["variantKey"]); } catch {} }
-    else if (args.HasKey("variant")) { try { variantKey = string(args["variant"]); } catch {} }
-
-    return variantKey.Trim();
 }
 
 void _ResetPendingCtx(FlowRun@ run) {
@@ -67,44 +38,11 @@ void _ResetPendingCtx(FlowRun@ run) {
     run.ctx.Set(CTX_MM_PENDING_PREFER,  "");
 }
 
-bool _IsHex(uint8 c) {
-    return ( (c >= 48 && c <= 57)  
-          || (c >= 65 && c <= 70)  
-          || (c >= 97 && c <= 102) 
-          );
-}
-
 bool _IsDigit(uint8 c) { return (c >= 48 && c <= 57); }
 bool _IsAlpha(uint8 c) { return ( (c >= 65 && c <= 90) || (c >= 97 && c <= 122) ); }
 
-string _StripDollarCodes(const string &in s) {
-    string outS = "";
-    int L = int(s.Length);
-    int i = 0;
-    while (i < L) {
-        uint8 c = s[uint(i)];
-        if (c == 36) { 
-            
-            if (i + 3 < L && _IsHex(s[uint(i + 1)]) && _IsHex(s[uint(i + 2)]) && _IsHex(s[uint(i + 3)])) {
-                i += 4;
-                continue;
-            }
-            
-            if (i + 1 < L) {
-                i += 2;
-                continue;
-            }
-            i += 1;
-            continue;
-        }
-        outS += s.SubStr(i, 1);
-        i++;
-    }
-    return outS;
-}
-
 string _ExtractVariantKey(const string &in raw) {
-    string s = _StripDollarCodes(raw);
+    string s = Text::StripFormatCodes(raw);
     s = UiNav::CleanUiFormatting(s);
 
     int L = int(s.Length);
@@ -151,7 +89,7 @@ string _ExtractVariantKey(const string &in raw) {
 }
 
 string _NormalizeUiLabel(const string &in raw) {
-    return UiNav::NormalizeForCompare(_StripDollarCodes(raw)).Trim();
+    return UiNav::NormalizeForCompare(Text::StripFormatCodes(raw)).Trim();
 }
 
 void _AppendWarning(FlowRun@ run,
@@ -233,7 +171,7 @@ namespace CrashSkip {
         _Add("DecoPlatformIceSlope4Base4CurveIn",    "A-1-1|G-1-1|G-2-1|A-2-1","Known to crash the game when opened in Mesh Modeller.");
         _Add("DecoPlatformIceSlope2Start2Base5",     "A-1-1|G-1-1|G-2-1|A-2-1","Known to crash the game when opened in Mesh Modeller.");
 
-        log("CrashSkip: initialized " + tostring(gVariantsSpecByBlockLower.GetSize()) + " block rule(s).", LogLevel::Debug, 236, "_Init");
+        log("CrashSkip: initialized " + tostring(gVariantsSpecByBlockLower.GetSize()) + " block rule(s).", LogLevel::Debug, 207, "_Init");
 
     }
 
@@ -258,7 +196,7 @@ namespace CrashSkip {
         reasonOut = rsn;
 
         if (spec == "*" || spec == "all") {
-            log("CrashSkip: block='" + blockCanon + "' spec='*' -> SKIP ALL", LogLevel::Debug, 261, "ShouldSkip");
+            log("CrashSkip: block='" + blockCanon + "' spec='*' -> SKIP ALL", LogLevel::Debug, 232, "ShouldSkip");
             return true;
         }
 
@@ -270,7 +208,7 @@ namespace CrashSkip {
         vKey = vKey.ToLower().Trim();
 
         if (vKey.Length == 0) {
-            log("CrashSkip: block='" + blockCanon + "' has rules but could not parse variant key from label='" + variantLabelOrKey + "'", LogLevel::Debug, 273, "ShouldSkip");
+            log("CrashSkip: block='" + blockCanon + "' has rules but could not parse variant key from label='" + variantLabelOrKey + "'", LogLevel::Debug, 244, "ShouldSkip");
 
             return false;
         }
@@ -279,14 +217,13 @@ namespace CrashSkip {
         tmpSpec = tmpSpec.Replace(",", "|");
         string[] toks = tmpSpec.Split("|");
 
-        log("CrashSkip: block='" + blockCanon + "' variantKey='" + vKey + "' spec='" + spec + "'", LogLevel::Debug, 282, "ShouldSkip");
-
+        log("CrashSkip: block='" + blockCanon + "' variantKey='" + vKey + "' spec='" + spec + "'", LogLevel::Debug, 253, "ShouldSkip");
 
         for (uint i = 0; i < toks.Length; ++i) {
             string t = toks[i].Trim().ToLower();
             if (t.Length == 0) continue;
             if (vKey == t || vKey.IndexOf(t) >= 0) {
-                log("CrashSkip: MATCH token='" + t + "' -> SKIP", LogLevel::Debug, 289, "ShouldSkip");
+                log("CrashSkip: MATCH token='" + t + "' -> SKIP", LogLevel::Debug, 260, "ShouldSkip");
                 return true;
             }
         }
@@ -456,10 +393,10 @@ int _SelectVariantPos(const Json::Value@ args, const array<int> &in uiIdx, const
             }
         }
 
-        string key = _ToLower(wantRaw);
+        string key = wantRaw.ToLower();
         if (key.Length > 0) {
             for (int i = 0; i < int(labels.Length); ++i) {
-                if (_ToLower(labels[uint(i)]).IndexOf(key) >= 0) return i;
+                if (labels[uint(i)].ToLower().IndexOf(key) >= 0) return i;
             }
         }
     }
@@ -481,7 +418,9 @@ bool _ClickVariant(CControlListCard@ propsLC, int uiRow, const string &in prefer
 
     log("Variant ui=" + tostring(uiRow)
         + " has Edit:" + (bEdit is null ? "null" : (editHidden ? "hidden" : "visible"))
-        + " New:" + (bNew is null ? "null" : (newHidden ? "hidden" : "visible")), LogLevel::Debug, 482, "_ClickVariant");
+        + " New:" + (bNew is null ? "null" : (newHidden ? "hidden" : "visible")), LogLevel::Debug, 453, "_ClickVariant");
+
+
 
 
 
@@ -518,7 +457,7 @@ void _HandleDefaultCubeWarningIfPresent(FlowRun@ run, const string &in blockCano
     string raw = UiNav::ReadText(n);
     if (!_LooksLikeDefaultCubeWarning(raw)) return;
 
-    log("OpenMeshModeller: default-cube warning detected -> clicking OK.", LogLevel::Warn, 519, "_HandleDefaultCubeWarningIfPresent");
+    log("OpenMeshModeller: default-cube warning detected -> clicking OK.", LogLevel::Warn, 492, "_HandleDefaultCubeWarningIfPresent");
     _AppendWarning(run, "mesh_modeller_default_cube", blockCanon, variantLabel, raw);
 
     UiNav::ClickPath(PATH_WARN_OKBTN, OVL_WARN_CUBE);
@@ -630,20 +569,20 @@ bool _Open_BlockToBlock(FlowRun@ run,
                         bool skipIfKnownCrash,
                         const string &in variantKeyArg)
 {
-    log("OpenMeshModeller: block-to-block overlay=" + tostring(overlay), LogLevel::Info, 631, "_Open_BlockToBlock");
+    log("OpenMeshModeller: block-to-block overlay=" + tostring(overlay), LogLevel::Info, 604, "_Open_BlockToBlock");
 
     const string blockCanon = _GetBlockCanonFromCtxOrIndex(run);
 
     string resolvedPath;
     CControlListCard@ propsLC = _FindPropertiesListCard(overlay, resolvedPath);
     if (propsLC is null) {
-        log("open_mesh_modeller (block-to-block): Properties path not found: " + PROPS_ROOT_A + " (BFS fallback also attempted)", LogLevel::Warn, 638, "_Open_BlockToBlock");
+        log("open_mesh_modeller (block-to-block): Properties path not found: " + PROPS_ROOT_A + " (BFS fallback also attempted)", LogLevel::Warn, 611, "_Open_BlockToBlock");
 
         run.ctx.lastError = "open_mesh_modeller (block-to-block): Properties list not found at overlay " + tostring(overlay);
         _ClearPendingAndIntentNonCrash(run, "failed", "Properties list not found (non-crash).");
         return false;
     }
-    log("Found ListCardProperties at: " + (resolvedPath.Length == 0 ? "<unknown>" : resolvedPath), LogLevel::Info, 644, "_Open_BlockToBlock");
+    log("Found ListCardProperties at: " + (resolvedPath.Length == 0 ? "<unknown>" : resolvedPath), LogLevel::Info, 617, "_Open_BlockToBlock");
 
 
     array<int> rowUI;
@@ -651,7 +590,7 @@ bool _Open_BlockToBlock(FlowRun@ run,
     _CollectVariantRows(propsLC, rowUI, labels);
 
     if (rowUI.Length == 0) {
-        log("open_mesh_modeller (block-to-block): no variant-like rows detected (rows should contain 6/0 or 6/3).", LogLevel::Warn, 652, "_Open_BlockToBlock");
+        log("open_mesh_modeller (block-to-block): no variant-like rows detected (rows should contain 6/0 or 6/3).", LogLevel::Warn, 625, "_Open_BlockToBlock");
 
         run.ctx.lastError = "open_mesh_modeller (block-to-block): could not locate variant rows. Are you on the Properties panel?";
         _ClearPendingAndIntentNonCrash(run, "failed", "No variant rows detected (non-crash).");
@@ -677,7 +616,7 @@ bool _Open_BlockToBlock(FlowRun@ run,
         string reason;
         if (CrashSkip::ShouldSkip(blockCanon, vId, reason)) {
             string msg = "Skipped Mesh Modeller (CrashSkip): " + blockCanon + " | variant='" + vId + "' | " + reason;
-            log(msg, LogLevel::Warn, 678, "_Open_BlockToBlock");
+            log(msg, LogLevel::Warn, 651, "_Open_BlockToBlock");
             _MarkSkipped(run, "crash_skiplist", blockCanon, vId, msg);
             run.ctx.lastError = msg;
             return okOnSkip;
@@ -711,7 +650,7 @@ bool _Open_BlockToBlock(FlowRun@ run,
     yield();
     _HandleDefaultCubeWarningIfPresent(run, blockCanon, vId);
 
-    log("Clicked variant ui=" + tostring(uiVariantRow) + " prefer=" + pref + " key='" + vKey + "' label='" + variantLbl + "'", LogLevel::Info, 712, "_Open_BlockToBlock");
+    log("Clicked variant ui=" + tostring(uiVariantRow) + " prefer=" + pref + " key='" + vKey + "' label='" + variantLbl + "'", LogLevel::Info, 685, "_Open_BlockToBlock");
 
     return true;
 }
@@ -769,7 +708,7 @@ bool _Open_BlockToItem(FlowRun@ run,
     run.ctx.Set("meshModellerOpened", "1");
     if (vId.Length > 0) run.ctx.Set("meshModellerVariant", vId);
 
-    log("OpenMeshModeller: block-to-item prefer=" + pref, LogLevel::Info, 770, "_Open_BlockToItem");
+    log("OpenMeshModeller: block-to-item prefer=" + pref, LogLevel::Info, 743, "_Open_BlockToItem");
 
     yield();
     _HandleDefaultCubeWarningIfPresent(run, blockCanon, vId);
@@ -778,36 +717,23 @@ bool _Open_BlockToItem(FlowRun@ run,
 }
 
 bool Cmd_OpenMeshModeller(FlowRun@ run, Json::Value@ args) {
-    string mode = "block-to-block";
-    if (args !is null && args.HasKey("mode")) {
-        try { mode = string(args["mode"]); } catch {}
-    }
-    mode = mode.ToLower().Trim();
+    string mode = Helpers::Args::ReadLowerStr(args, "mode", "block-to-block");
     if (mode != "block-to-block" && mode != "block-to-item") mode = "block-to-block";
 
-    uint overlay = DEFAULT_OVERLAY;
-    if (args !is null && args.HasKey("overlay")) {
-        try { overlay = uint(int(args["overlay"])); } catch {
-            try { overlay = uint(Text::ParseInt(string(args["overlay"]).Trim())); } catch {}
-        }
-    }
+    uint overlay = uint(Helpers::Args::ReadInt(args, "overlay", int(DEFAULT_OVERLAY)));
     
-    if (args !is null && args.HasKey("blockName")) {
-        try {
-            string bn = string(args["blockName"]).Trim();
-            if (bn.Length > 0) run.ctx.Set("blockName", bn);
-        } catch {}
-    }
+    string blockName = Helpers::Args::ReadStr(args, "blockName", "").Trim();
+    if (blockName.Length > 0) run.ctx.Set("blockName", blockName);
 
-    string variantKeyArg = _ReadVariantKeyArg(args);
+    string variantKeyArg = Helpers::Args::ReadFirstStr(args, {"variantKey", "variant"}, "");
 
-    bool okOnSkip = _ReadBoolArg(args, "okOnSkip", false);
-    bool skipIfKnownCrash = _ReadBoolArg(args, "skipIfKnownCrash", true);
+    bool okOnSkip = Helpers::Args::ReadBool(args, "okOnSkip", false);
+    bool skipIfKnownCrash = Helpers::Args::ReadBool(args, "skipIfKnownCrash", true);
     if (args !is null && args.HasKey("skipIfKnownCrash")) {
-        skipIfKnownCrash = _ReadBoolArg(args, "skipIfKnownCrash", skipIfKnownCrash);
+        skipIfKnownCrash = Helpers::Args::ReadBool(args, "skipIfKnownCrash", skipIfKnownCrash);
     }
     if (args !is null && args.HasKey("skipIfKnownCrashVariant")) {
-        skipIfKnownCrash = _ReadBoolArg(args, "skipIfKnownCrashVariant", skipIfKnownCrash);
+        skipIfKnownCrash = Helpers::Args::ReadBool(args, "skipIfKnownCrashVariant", skipIfKnownCrash);
     }
 
     run.ctx.Set("meshModellerSkipped", "0");

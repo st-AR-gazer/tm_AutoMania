@@ -94,6 +94,7 @@ void _RunActive() {
 
 
 
+
         bool ok = gCmds.Execute(s.cmd, run, s.args);
         if (!ok) {
             run.status = FlowStatus::Error;
@@ -101,7 +102,7 @@ void _RunActive() {
                 + " (global " + tostring(gi + 1) + "/" + tostring(totalSteps) + "): " + s.cmd
                 + " — " + run.ctx.lastError;
 
-            log(run.statusStr, LogLevel::Error, 103, "_RunActive");
+            log(run.statusStr, LogLevel::Error, 104, "_RunActive");
 
             Json::Value@ extra = Json::Object();
             extra["failedCmd"] = s.cmd;
@@ -117,7 +118,7 @@ void _RunActive() {
             return;
         }
 
-        log("<< " + phaseLabel + " " + tostring(localIndex + 1) + " OK: " + s.cmd, LogLevel::Debug, 119, "_RunActive");
+        log("<< " + phaseLabel + " " + tostring(localIndex + 1) + " OK: " + s.cmd, LogLevel::Debug, 120, "_RunActive");
 
         automata::Helpers::FlowStatus::OnStepOk(run, s.cmd);
 

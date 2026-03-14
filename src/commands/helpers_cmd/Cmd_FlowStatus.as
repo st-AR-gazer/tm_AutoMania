@@ -10,69 +10,8 @@ Json::Value@ gStatusDoc = null;
 string gRunId = "";
 dictionary gSeenDedupe; 
 
-bool _ReadBoolArg(Json::Value@ args, const string &in key, bool defVal) {
-    if (args is null || !args.HasKey(key)) return defVal;
-    auto v = args[key];
-    auto t = v.GetType();
-
-    if (t == Json::Type::Boolean) return bool(v);
-    if (t == Json::Type::String) {
-        string s = string(v).ToLower().Trim();
-        if (s == "true" || s == "1" || s == "yes" || s == "y" || s == "on")  return true;
-        if (s == "false"|| s == "0" || s == "no"  || s == "n" || s == "off") return false;
-        return defVal;
-    }
-    try { return int(v) != 0; } catch {}
-    try { return float(v) != 0.0f; } catch {}
-    return defVal;
-}
-
-int _ReadIntArg(Json::Value@ args, const string &in key, int defVal) {
-    if (args is null || !args.HasKey(key)) return defVal;
-    auto v = args[key];
-    try { return int(v); } catch {}
-    try { return Text::ParseInt(string(v).Trim()); } catch {}
-    return defVal;
-}
-
-string _ReadStrArg(Json::Value@ args, const string &in key, const string &in defVal) {
-    if (args is null || !args.HasKey(key)) return defVal;
-    try { return string(args[key]); } catch {}
-    return defVal;
-}
-
-string _LowerTrim(const string &in s) { return s.ToLower().Trim(); }
 string _StatusPath() { return IO::FromStorageFolder(kStatusFile); }
 string _EventsPath() { return IO::FromStorageFolder(kEventsFile); }
-
-bool _WriteTextFile(const string &in absPath, const string &in data) {
-    try {
-        IO::File f(absPath, IO::FileMode::Write);
-        f.Write(data);
-        f.Close();
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-bool _AppendLine(const string &in absPath, const string &in line) {
-    try {
-        IO::FileMode mode = IO::FileExists(absPath) ? IO::FileMode::Append : IO::FileMode::Write;
-        IO::File f(absPath, mode);
-        f.Write(line + "\n");
-        f.Close();
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-void _DeleteIfExists(const string &in absPath) {
-    try {
-        if (IO::FileExists(absPath)) IO::Delete(absPath);
-    } catch {}
-}
 
 Json::Value@ _BuildCtxSnapshot(FlowRun@ run) {
     Json::Value@ o = Json::Object();
@@ -123,15 +62,15 @@ void _WriteStatusNow() {
 
     string json = Json::Write(gStatusDoc, false);
 
-    bool ok = _WriteTextFile(_StatusPath(), json);
-    if (!ok) log("FlowStatus: failed to write status file: " + _StatusPath(), LogLevel::Warn, 127, "_WriteStatusNow");
+    bool ok = Helpers::FileIO::WriteTextFile(_StatusPath(), json);
+    if (!ok) log("FlowStatus: failed to write status file: " + _StatusPath(), LogLevel::Warn, 66, "_WriteStatusNow");
     
     try {
         string mirrorDir = IO::FromUserGameFolder("AutoMania/status");
         if (!IO::FolderExists(mirrorDir)) IO::CreateFolder(mirrorDir, true);
 
         string mirrorPath = IO::FromUserGameFolder("AutoMania/status/flow.status.json");
-        _WriteTextFile(mirrorPath, json);
+        Helpers::FileIO::WriteTextFile(mirrorPath, json);
     } catch {
         
     }
@@ -164,7 +103,7 @@ void BeginRun(FlowRun@ run) {
     @gStatusDoc = Json::Object();
     _EnsureDoc();
     
-    _DeleteIfExists(_EventsPath());
+    Helpers::FileIO::DeleteIfExists(_EventsPath());
 
     Json::Value@ r = gStatusDoc["run"];
     r["runId"] = gRunId;
@@ -184,7 +123,7 @@ void BeginRun(FlowRun@ run) {
     run.ctx.Set("runId", gRunId);
 
     _WriteStatusNow();
-    log("FlowStatus: begin run id=" + gRunId + " flow='" + run.flow.name + "'", LogLevel::Info, 187, "BeginRun");
+    log("FlowStatus: begin run id=" + gRunId + " flow='" + run.flow.name + "'", LogLevel::Info, 126, "BeginRun");
 }
 
 void OnStepStart(FlowRun@ run, const string &in stepCmd) {
@@ -230,7 +169,7 @@ void RecordEvent(FlowRun@ run,
                  const string &in messageIn,
                  Json::Value@ extra = null)
 {
-    string sev = _LowerTrim(severityIn);
+    string sev = severityIn.ToLower().Trim();
     if (sev != "info" && sev != "warn" && sev != "error") sev = "warn";
 
     string code = codeIn.Trim();
@@ -257,9 +196,9 @@ void RecordEvent(FlowRun@ run,
         ev["extra"] = extra;
     }
 
-    bool okAppend = _AppendLine(_EventsPath(), Json::Write(ev, false));
+    bool okAppend = Helpers::FileIO::AppendLine(_EventsPath(), Json::Write(ev, false));
     if (!okAppend) {
-        log("FlowStatus: failed to append event to: " + _EventsPath(), LogLevel::Warn, 262, "RecordEvent");
+        log("FlowStatus: failed to append event to: " + _EventsPath(), LogLevel::Warn, 201, "RecordEvent");
     }
     
     _IncCount(sev);
@@ -273,19 +212,19 @@ void RecordEvent(FlowRun@ run,
 
 
 bool Cmd_CheckForError(FlowRun@ run, Json::Value@ args) {
-    int overlay = _ReadIntArg(args, "overlay", run.ctx.defaultOverlay);
-    string path = _ReadStrArg(args, "path", "");
+    int overlay = Helpers::Args::ReadInt(args, "overlay", run.ctx.defaultOverlay);
+    string path = Helpers::Args::ReadStr(args, "path", "");
     if (path.Length == 0) {
         run.ctx.lastError = "check_for_error: missing args.path";
         return false;
     }
 
-    string contains  = _ReadStrArg(args, "contains", "");
-    string sev       = _ReadStrArg(args, "severity", "warn");
-    string code      = _ReadStrArg(args, "code", "ui.check");
-    string msg       = _ReadStrArg(args, "message", "");
-    bool failOnFound = _ReadBoolArg(args, "failOnFound", false);
-    bool dedupe      = _ReadBoolArg(args, "dedupe", true);
+    string contains  = Helpers::Args::ReadStr(args, "contains", "");
+    string sev       = Helpers::Args::ReadStr(args, "severity", "warn");
+    string code      = Helpers::Args::ReadStr(args, "code", "ui.check");
+    string msg       = Helpers::Args::ReadStr(args, "message", "");
+    bool failOnFound = Helpers::Args::ReadBool(args, "failOnFound", false);
+    bool dedupe      = Helpers::Args::ReadBool(args, "dedupe", true);
     
     CControlBase@ n = UiNav::ResolvePath(path, uint(overlay));
     if (n is null) {
@@ -336,9 +275,9 @@ bool Cmd_CheckMeshConvertWarning(FlowRun@ run, Json::Value@ args) {
 }
 
 bool Cmd_StatusNote(FlowRun@ run, Json::Value@ args) {
-    string sev  = _ReadStrArg(args, "severity", "info");
-    string code = _ReadStrArg(args, "code", "note");
-    string msg  = _ReadStrArg(args, "message", "");
+    string sev  = Helpers::Args::ReadStr(args, "severity", "info");
+    string code = Helpers::Args::ReadStr(args, "code", "note");
+    string msg  = Helpers::Args::ReadStr(args, "message", "");
 
     Json::Value@ extra = null;
     if (args !is null && args.HasKey("extra") && args["extra"].GetType() == Json::Type::Object) {
@@ -349,7 +288,7 @@ bool Cmd_StatusNote(FlowRun@ run, Json::Value@ args) {
 }
 
 bool Cmd_TryExecute(FlowRun@ run, Json::Value@ args) {
-    string innerCmd = _ReadStrArg(args, "cmd", "");
+    string innerCmd = Helpers::Args::ReadStr(args, "cmd", "");
     if (innerCmd.Length == 0) {
         run.ctx.lastError = "try_execute: missing args.cmd";
         return false;
@@ -360,11 +299,11 @@ bool Cmd_TryExecute(FlowRun@ run, Json::Value@ args) {
         @innerArgs = args["args"];
     }
 
-    string sev      = _ReadStrArg(args, "severity", "warn");
-    string code     = _ReadStrArg(args, "code", "cmd.failed");
-    string msgPref  = _ReadStrArg(args, "message", "");
-    bool cont       = _ReadBoolArg(args, "continueOnFail", true);
-    bool clearErr   = _ReadBoolArg(args, "clearLastError", true);
+    string sev      = Helpers::Args::ReadStr(args, "severity", "warn");
+    string code     = Helpers::Args::ReadStr(args, "code", "cmd.failed");
+    string msgPref  = Helpers::Args::ReadStr(args, "message", "");
+    bool cont       = Helpers::Args::ReadBool(args, "continueOnFail", true);
+    bool clearErr   = Helpers::Args::ReadBool(args, "clearLastError", true);
 
     string beforeErr = run.ctx.lastError;
 

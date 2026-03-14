@@ -98,19 +98,6 @@ bool _VsmIsClearLike(const string &in stateLower) {
     return (s == "clear" || s == "cleared" || s == "safe" || s == "ok" || s == "done");
 }
 
-void MarkSafeRemove(const string &in blockCanon, const string &in variantKey, const string &in why = "safe") {
-    if (blockCanon.Length == 0 || variantKey.Length == 0) return;
-
-    ClearPending(blockCanon, variantKey);
-
-    gVsmDirtyOps++;
-
-    if ((gVsmDirtyOps % 250) == 1) {
-        log("VariantSkips: MarkSafeRemove (dirtyOps=" + tostring(gVsmDirtyOps) + ") last='" + blockCanon + "' / '" + variantKey + "' (" + why + ")", LogLevel::Info, 109, "MarkSafeRemove");
-
-    }
-}
-
 bool VacuumSkipDb(bool backup = true) {
     string path = _VsmDbPath();
     if (!IO::FileExists(path)) return true;
@@ -179,6 +166,9 @@ bool VacuumSkipDb(bool backup = true) {
 
 
 
+
+
+
     return true;
 }
 
@@ -221,7 +211,7 @@ bool Cmd_VariantSkipsCleanup(FlowRun@ run, Json::Value@ args) {
         return false;
     }
 
-    log("variant_skips_cleanup: " + summary + " | file=" + GetDbPath(), LogLevel::Info, 221, "Cmd_VariantSkipsCleanup");
+    log("variant_skips_cleanup: " + summary + " | file=" + GetDbPath(), LogLevel::Info, 224, "Cmd_VariantSkipsCleanup");
 
 
     if (run !is null) {

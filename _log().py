@@ -7,6 +7,7 @@ parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose
 args = parser.parse_args()
 
 DEFAULT_PARAMS = ['""', "LogLevel::Info", "-1", '""']
+EXCLUDE_BASENAMES = {"Logging.as"}
 
 KEYWORDS = {
     "if", "else", "for", "while", "switch", "case", "default", "do", "break", "continue", "return",
@@ -524,6 +525,10 @@ def process_directory(directory, verbose):
         for file in files:
             ext = os.path.splitext(file)[1]
             if ext in include_extensions and ext not in exclude_extensions:
+                if file in EXCLUDE_BASENAMES:
+                    if verbose:
+                        print(f"Skipping excluded file: {os.path.join(root, file)}")
+                    continue
                 file_path = os.path.join(root, file)
                 if modify_log_statements(file_path, verbose):
                     if verbose:

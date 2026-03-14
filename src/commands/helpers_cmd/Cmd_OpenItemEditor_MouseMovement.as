@@ -5,13 +5,6 @@ const int   kPostClickYield     = 2;
 const int   kSettleFramesShort  = 6;     
 const int   kWaitItemEditorMs   = 3000;  
 
-const uint   OVL_CANNOT_CONVERT = 12;
-const string PATH_CANNOT_LABEL  = "1/0/2/1";
-const string PATH_CANNOT_OKBTN  = "1/0/2/0/0";
-const string NEEDLE_CANNOT_CONVERT = "cannot convert this block into a custom block";
-
-string _toLower(const string &in s) { return s.ToLower(); }
-
 bool _IsItemEditorOpen(CGameCtnApp@ app) {
     return cast<CGameEditorItem>(app.Editor) !is null;
 }
@@ -25,83 +18,6 @@ bool _WaitForItemEditor(CGameCtnApp@ app, int timeoutMs) {
     return _IsItemEditorOpen(app);
 }
 
-bool _TryResolveBlockInfo(const string &in nameIn, CGameCtnBlockInfo@ &out info, string &out canonical, string &out err) {
-    if (!automata::Helpers::Blocks::TryFindBlockInfoByName(nameIn, info, canonical, err)) {
-        return false;
-    }
-    return true;
-}
-
-void _RecordWarning_CannotConvert(FlowRun@ run, const string &in blockCanon, const string &in rawMsg) {
-    if (run is null) return;
-
-    string lastB, lastS;
-    run.ctx.GetString("lastCannotConvertBlock", lastB);
-    run.ctx.GetString("lastCannotConvertStep",  lastS);
-    string curS = tostring(int(run.ctx.stepIndex));
-    if (lastB == blockCanon && lastS == curS) return;
-
-    run.ctx.Set("lastCannotConvertBlock", blockCanon);
-    run.ctx.Set("lastCannotConvertStep",  curS);
-
-    Json::Value@ ev = Json::Object();
-    ev["type"]     = "item_editor_cannot_convert";
-    ev["block"]    = blockCanon;
-    ev["message"]  = rawMsg;
-    ev["overlay"]  = int(OVL_CANNOT_CONVERT);
-    ev["path"]     = PATH_CANNOT_LABEL;
-    ev["step"]     = int(run.ctx.stepIndex);
-    ev["timeNow"]  = int(Time::Now);
-    if (run.flow !is null) ev["flow"] = run.flow.name;
-
-    string line = Json::Write(ev, false);
-
-    string prev;
-    bool had = run.ctx.GetString("warningsJsonl", prev);
-    if (had && prev.Length > 0) prev += line + "\n";
-    else                        prev  = line + "\n";
-    run.ctx.Set("warningsJsonl", prev);
-
-    run.ctx.Set("lastWarningType",    "item_editor_cannot_convert");
-    run.ctx.Set("lastWarningBlock",   blockCanon);
-    run.ctx.Set("lastWarningMessage", rawMsg);
-    run.ctx.Set("lastWarningStep",    curS);
-
-    string cS;
-    int c = 0;
-    if (run.ctx.GetString("warningsCount", cS) && cS.Length > 0) c = Text::ParseInt(cS);
-    c++;
-    run.ctx.Set("warningsCount", tostring(c));
-}
-
-bool _DismissCannotConvertPopupIfPresent(const string &in blockCanonForRecord) {
-    CControlBase@ lbl = UiNav::ResolvePath(PATH_CANNOT_LABEL, OVL_CANNOT_CONVERT);
-    if (lbl is null) return false;
-
-    string raw = UiNav::ReadText(lbl);
-    string cmp = UiNav::NormalizeForCompare(raw).ToLower();
-    if (cmp.IndexOf(NEEDLE_CANNOT_CONVERT) < 0) return false;
-
-    FlowRun@ run = automata::gActive;
-
-    log("OpenItemEditor(mouse): Cannot convert popup detected for '" + blockCanonForRecord + "'. Clicking OK + skipping.", LogLevel::Warn, 87, "_DismissCannotConvertPopupIfPresent");
-
-    _RecordWarning_CannotConvert(run, blockCanonForRecord, raw);
-
-    UiNav::ClickPath(PATH_CANNOT_OKBTN, OVL_CANNOT_CONVERT);
-    yield();
-
-    if (run !is null) {
-        run.ctx.Set("itemEditorOpened", "0");
-        run.ctx.Set("itemEditorSkipReason", "cannot_convert");
-        if (run.ctx.loopActive && run.ctx.loopEndStep >= 0) {
-            run.ctx.jumpToStep = run.ctx.loopEndStep;
-        }
-    }
-
-    return true;
-}
-
 CGameCtnBlock@ _PlaceOne(CGameCtnApp@ app, CGameCtnEditorCommon@ editor, CGameEditorPluginMapMapType@ pmt, CGameCtnBlockInfo@ info) {
     pmt.PlaceMode = CGameEditorPluginMap::EPlaceMode::GhostBlock;
     @pmt.CursorBlockModel = info;
@@ -111,7 +27,7 @@ CGameCtnBlock@ _PlaceOne(CGameCtnApp@ app, CGameCtnEditorCommon@ editor, CGameEd
     uint before = pmt.Blocks.Length;
 
     if (::mouse is null) {
-        log("OpenItemEditor(mouse): mouse controller not available; cannot place.", LogLevel::Error, 114, "_PlaceOne");
+        log("OpenItemEditor(mouse): mouse controller not available; cannot place.", LogLevel::Error, 30, "_PlaceOne");
         return null;
     }
     
@@ -124,14 +40,12 @@ CGameCtnBlock@ _PlaceOne(CGameCtnApp@ app, CGameCtnEditorCommon@ editor, CGameEd
 
         if (pmt.Blocks.Length > before) {
             CGameCtnBlock@ placed = pmt.Blocks[pmt.Blocks.Length - 1];
-            log("OpenItemEditor(mouse): placed '" + info.Name + "' (Blocks: " + before + " -> " + pmt.Blocks.Length + ")", LogLevel::Info, 127, "_PlaceOne");
+            log("OpenItemEditor(mouse): placed '" + info.Name + "' (Blocks: " + before + " -> " + pmt.Blocks.Length + ")", LogLevel::Info, 43, "_PlaceOne");
             return placed;
         }
     }
 
-    log("\\$ff0[WARN] OpenItemEditor(mouse): failed to place block — "
-        "hold NUMPAD3 for the DLL to accept input, ensure cursor is over placeable grid and the game window is focused.", LogLevel::Warn, 132, "_PlaceOne");
-
+    log("\\$ff0[WARN] OpenItemEditor(mouse): failed to place block - hold NUMPAD3 for the DLL to accept input, ensure cursor is over placeable grid and the game window is focused.", LogLevel::Warn, 48, "_PlaceOne");
 
     return null;
 }
@@ -149,7 +63,7 @@ bool _ClickToOpenItemEditor(CGameCtnApp@ app, CGameCtnEditorCommon@ editor, cons
 
             if (_IsItemEditorOpen(app)) return true;
 
-            if (_DismissCannotConvertPopupIfPresent(canonical)) {
+            if (Helpers::ItemEditorWarnings::HandleCannotConvertPopup(canonical, "OpenItemEditor(mouse)", 87, "_DismissCannotConvertPopupIfPresent")) {
                 cannotConvert = true;
                 return false;
             }
@@ -170,14 +84,14 @@ bool OpenItemEditor(const string &in modeIn, const string &in blockNameIn, strin
     CGameEditorPluginMapMapType@ pmt = editor.PluginMapType;
     if (pmt is null) { err = "PluginMapType is null."; return false; }
 
-    string mode = _toLower(modeIn);
+    string mode = modeIn.ToLower();
     if (mode != "block-to-block" && mode != "block-to-item") {
         err = "Unknown mode '" + modeIn + "'. Expected 'block-to-block' or 'block-to-item'.";
         return false;
     }
     
     CGameCtnBlockInfo@ info; string canonical; string rerr;
-    if (!_TryResolveBlockInfo(blockNameIn, info, canonical, rerr)) {
+    if (!automata::Helpers::Blocks::TryFindBlockInfoByName(blockNameIn, info, canonical, rerr)) {
         err = "Block not found: " + blockNameIn + (rerr.Length > 0 ? " | " + rerr : "");
         return false;
     }
@@ -196,10 +110,10 @@ bool OpenItemEditor(const string &in modeIn, const string &in blockNameIn, strin
 
     if (mode == "block-to-item") {
         editor.ButtonItemCreateFromBlockModeOnClick();
-        log("OpenItemEditor(mouse): switched to 'Item Create From Block' mode.", LogLevel::Info, 198, "OpenItemEditor");
+        log("OpenItemEditor(mouse): switched to 'Item Create From Block' mode.", LogLevel::Info, 115, "OpenItemEditor");
     } else {
         editor.ButtonBlockItemCreateModeOnClick();
-        log("OpenItemEditor(mouse): switched to 'Block → CustomBlock' mode.", LogLevel::Info, 201, "OpenItemEditor");
+        log("OpenItemEditor(mouse): switched to 'Block → CustomBlock' mode.", LogLevel::Info, 118, "OpenItemEditor");
     }
 
     yield(kSettleFramesShort);
@@ -227,7 +141,7 @@ bool OpenItemEditor(const string &in modeIn, const string &in blockNameIn, strin
         run.ctx.Set("itemEditorSkipReason", "");
     }
 
-    log("OpenItemEditor(mouse): Item Editor is open.", LogLevel::Info, 229, "OpenItemEditor");
+    log("OpenItemEditor(mouse): Item Editor is open.", LogLevel::Info, 146, "OpenItemEditor");
     return true;
 }
 

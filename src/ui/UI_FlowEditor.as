@@ -47,12 +47,6 @@ string SanitizeFileName(const string &in name) {
     return outS;
 }
 
-int ClampInt(int v, int lo, int hi) {
-    if (v < lo) return lo;
-    if (v > hi) return hi;
-    return v;
-}
-
 void Tab_MoveStep(EditorTab@ t, uint from, uint to) {
     if (from >= t.steps.Length) return;
     if (t.steps.Length == 0) return;
@@ -253,6 +247,14 @@ void _RenderParams(EditorTab@ t) {
     UI::PopID();
 }
 
+int _RenderTimeoutInput(const string &in label, int value, const string &in id) {
+    int v = UI::InputInt(label + "##" + id, value);
+    int outV = v < 0 ? 0 : v;
+    UI::SameLine();
+    if (UI::Button("✕##rm-" + id)) outV = 0;
+    return outV;
+}
+
 void _RenderStepTimeouts(StepDef@ s, int stepIdx, int tabUid) {
     bool hasBF = s.beforeFrames > 0;
     bool hasBM = s.beforeMs     > 0;
@@ -264,31 +266,10 @@ void _RenderStepTimeouts(StepDef@ s, int stepIdx, int tabUid) {
     UI::Text("Timeouts"); UI::SameLine();
     UI::TextDisabled(anyActive ? "(click ✕ to remove)" : "(none)");
 
-    if (hasBF) {
-        UI::Separator();
-        int vBF = UI::InputInt("Before (frames)##bf-" + tostring(tabUid) + "-" + tostring(stepIdx), s.beforeFrames);
-        s.beforeFrames = vBF < 0 ? 0 : vBF;
-        UI::SameLine();
-        if (UI::Button("✕##rm-bf-" + tostring(tabUid) + "-" + tostring(stepIdx))) s.beforeFrames = 0;
-    }
-    if (hasBM) {
-        int vBM = UI::InputInt("Before (ms)##bm-" + tostring(tabUid) + "-" + tostring(stepIdx), s.beforeMs);
-        s.beforeMs = vBM < 0 ? 0 : vBM;
-        UI::SameLine();
-        if (UI::Button("✕##rm-bm-" + tostring(tabUid) + "-" + tostring(stepIdx))) s.beforeMs = 0;
-    }
-    if (hasAF) {
-        int vAF = UI::InputInt("After (frames)##af-" + tostring(tabUid) + "-" + tostring(stepIdx), s.afterFrames);
-        s.afterFrames = vAF < 0 ? 0 : vAF;
-        UI::SameLine();
-        if (UI::Button("✕##rm-af-" + tostring(tabUid) + "-" + tostring(stepIdx))) s.afterFrames = 0;
-    }
-    if (hasAM) {
-        int vAM = UI::InputInt("After (ms)##am-" + tostring(tabUid) + "-" + tostring(stepIdx), s.afterMs);
-        s.afterMs = vAM < 0 ? 0 : vAM;
-        UI::SameLine();
-        if (UI::Button("✕##rm-am-" + tostring(tabUid) + "-" + tostring(stepIdx))) s.afterMs = 0;
-    }
+    if (hasBF) { UI::Separator(); s.beforeFrames = _RenderTimeoutInput("Before (frames)", s.beforeFrames, "bf-" + tostring(tabUid) + "-" + tostring(stepIdx)); }
+    if (hasBM) { s.beforeMs      = _RenderTimeoutInput("Before (ms)",     s.beforeMs,     "bm-" + tostring(tabUid) + "-" + tostring(stepIdx)); }
+    if (hasAF) { s.afterFrames   = _RenderTimeoutInput("After (frames)",  s.afterFrames,  "af-" + tostring(tabUid) + "-" + tostring(stepIdx)); }
+    if (hasAM) { s.afterMs       = _RenderTimeoutInput("After (ms)",      s.afterMs,      "am-" + tostring(tabUid) + "-" + tostring(stepIdx)); }
 
     bool canAdd = !hasBF || !hasBM || !hasAF || !hasAM;
     UI::BeginDisabled(!canAdd);
@@ -557,7 +538,7 @@ void _RenderTab(EditorTab@ t, int tabIdx) {
                         UI::TableNextColumn();
                         int to = t.reorderToIndex[i];
                         to = UI::InputInt(("##to"+tostring(i)), to);
-                        t.reorderToIndex[i] = ClampInt(to, 0, int(t.steps.Length) - 1);
+                        t.reorderToIndex[i] = Math::Clamp(to, 0, int(t.steps.Length) - 1);
                         UI::SameLine();
                         if (UI::Button("Move##to"+tostring(i))) {
                             Tab_MoveStep(t, i, uint(t.reorderToIndex[i]));

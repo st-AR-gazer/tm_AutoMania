@@ -63,10 +63,8 @@ void _EnsureLoaded() {
         return;
     }
 
-    string raw = "";
-    try {
-        raw = IO::ReadFile(path);
-    } catch {
+    string raw = Helpers::FileIO::ReadTextFile(path);
+    if (raw.Length == 0 && IO::FileExists(path)) {
         log("VariantSkips: failed reading DB at: " + path, LogLevel::Warn, 70, "_EnsureLoaded");
         return;
     }
@@ -101,13 +99,11 @@ bool _SaveDb(bool pretty) {
         return false;
     }
 
-    try {
-        IO::WriteFile(path, txt + "\n");
-        return true;
-    } catch {
+    if (!Helpers::FileIO::WriteTextFile(path, txt + "\n")) {
         log("VariantSkips: failed writing DB at: " + path, LogLevel::Error, 108, "_SaveDb");
         return false;
     }
+    return true;
 }
 
 Json::Value@ _GetBlockNode(const string &in blockCanon, bool createIfMissing) {
@@ -288,6 +284,28 @@ void MarkCrash(const string &in blockCanon, const string &in variantKeyIn, const
 void MarkCrashed(const string &in blockCanon, const string &in variantKeyIn, const string &in note) { MarkCrash(blockCanon, variantKeyIn, note); }
 void MarkKnownCrash(const string &in blockCanon, const string &in variantKeyIn, const string &in note) { MarkCrash(blockCanon, variantKeyIn, note); }
 
+bool PromoteToCrash(const string &in blockCanon, const string &in variantKeyIn, const string &in note) {
+    _EnsureLoaded();
+    if (gDb is null) @gDb = _EmptyDb();
+
+    string blk = _NormBlockCanon(blockCanon);
+    string vKey = _NormVariantKey(variantKeyIn);
+    if (blk.Length == 0 || vKey.Length == 0) return false;
+
+    bool alreadyCrash = false;
+    Json::Value@ b = _GetBlockNode(blk, true);
+    Json::Value@ vars = _GetVariantsObj(b, true);
+    if (vars !is null && vars.HasKey(vKey)) {
+        string st = _GetState(vars[vKey]);
+        if (st == "crash") alreadyCrash = true;
+    }
+
+    if (alreadyCrash) return false;
+
+    MarkCrash(blk, vKey, note);
+    return true;
+}
+
 bool MarkSafeRemove(const string &in blockCanon, const string &in variantKeyIn, const string &in note) {
     _EnsureLoaded();
     if (gDb is null) return false;
@@ -329,8 +347,8 @@ void AutoVacuumIfNeeded(int maxLines, int targetLines) {
     string path = _ResolveDbPath();
     if (!IO::FileExists(path)) return;
 
-    string raw;
-    try { raw = IO::ReadFile(path); } catch { return; }
+    string raw = Helpers::FileIO::ReadTextFile(path);
+    if (raw.Length == 0) return;
 
     int lines = _CountLinesFast(raw);
     if (lines <= maxLines) return;
@@ -427,6 +445,10 @@ bool CleanupNow(bool purgeNonCrash,
 
 string GetDbPath() {
     return _ResolveDbPath();
+}
+
+void RegisterVariantSkipsCleanup(CommandRegistry@ R) {
+    RegisterVariantSkipsMaintenance(R);
 }
 
 }}}

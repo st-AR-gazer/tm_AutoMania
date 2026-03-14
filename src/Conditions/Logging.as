@@ -16,17 +16,18 @@ namespace logging {
 
     [Setting category="z~DEV" name="Show default OP logs" hidden] bool S_showDefaultLogs = true;
 
-    [Setting category="z~DEV" name="Show Custom logs"   hidden] bool DEV_S_sCustom   = true;
-    [Setting category="z~DEV" name="Show Debug logs"    hidden] bool DEV_S_sDebug    = true;
-    [Setting category="z~DEV" name="Show Info logs"     hidden] bool DEV_S_sInfo     = true;
-    [Setting category="z~DEV" name="Show Notice logs"   hidden] bool DEV_S_sNotice   = true;
+    [Setting category="z~DEV" name="Show Custom logs"   hidden] bool DEV_S_sCustom   = false;
+    [Setting category="z~DEV" name="Show Debug logs"    hidden] bool DEV_S_sDebug    = false;
+    [Setting category="z~DEV" name="Show Info logs"     hidden] bool DEV_S_sInfo     = false;
+    [Setting category="z~DEV" name="Show Notice logs"   hidden] bool DEV_S_sNotice   = false;
     [Setting category="z~DEV" name="Show Warn logs"     hidden] bool DEV_S_sWarn     = true;
     [Setting category="z~DEV" name="Show Error logs"    hidden] bool DEV_S_sError    = true;
     [Setting category="z~DEV" name="Show Critical logs" hidden] bool DEV_S_sCritical = true;
 
-    [Setting category="z~DEV" name="Set log level" min="0" max="5" hidden] int DEV_S_sLogLevelSlider = 0;
+    [Setting category="z~DEV" name="Set log level" min="0" max="5" hidden] int DEV_S_sLogLevelSlider = 4;
 
-    [Setting category="z~DEV" name="Show function name in logs" hidden] bool S_showFunctionNameInLogs = true;
+    [Setting category="z~DEV" name="Show function name in logs" hidden] bool S_showFunctionNameInLogs = false;
+    [Setting category="z~DEV" name="Show line numbers in logs" hidden] bool S_showLineInLogs = false;
     [Setting category="z~DEV" name="Set max function name length in logs" min="0" max="50" hidden] int S_maxFunctionNameLength = 15;
 
     const string kLogsFolder      = "Logs/";
@@ -69,8 +70,9 @@ namespace logging {
             }
 
             UI::Separator();
-            UI::Text("Function Name Settings");
+            UI::Text("Log Formatting");
             S_showFunctionNameInLogs = UI::Checkbox("Show function name in logs", S_showFunctionNameInLogs);
+            S_showLineInLogs         = UI::Checkbox("Show line numbers in logs", S_showLineInLogs);
             S_maxFunctionNameLength  = UI::SliderInt("Set max function name length", S_maxFunctionNameLength, 0, 50);
 
             UI::EndChild();
@@ -154,6 +156,19 @@ namespace logging {
         return col + "[" + t + "] ";
     }
 
+    bool IsLevelEnabled(LogLevel level) {
+        switch (level) {
+            case LogLevel::Debug:    return DEV_S_sDebug;
+            case LogLevel::Info:     return DEV_S_sInfo;
+            case LogLevel::Notice:   return DEV_S_sNotice;
+            case LogLevel::Warn:     return DEV_S_sWarn;
+            case LogLevel::Error:    return DEV_S_sError;
+            case LogLevel::Critical: return DEV_S_sCritical;
+            case LogLevel::Custom:   return DEV_S_sCustom;
+        }
+        return true;
+    }
+
     void Initialise() {
         string absLogs = IO::FromStorageFolder(kLogsFolder);
         if (!IO::FolderExists(absLogs)) IO::CreateFolder(absLogs);
@@ -165,20 +180,20 @@ namespace logging {
 
 }
 
-void log(const string &in msg, LogLevel level     = LogLevel::Info, 168, "UnknownFunction", string   _tag      = "", string   _tagColor = "\\$f80")
+void log(const string &in msg, LogLevel level = LogLevel::Info, int line = -1, string _fnName = "UnknownFunction", string _tag = "", string _tagColor = "\\$f80") {
+    bool writeFile = logging::S_writeLogToFile;
+    bool showConsole = logging::IsLevelEnabled(level);
+    if (!writeFile && !showConsole) return;
 
+    string lineInfo = "";
+    if (logging::S_showLineInLogs && line >= 0) lineInfo = tostring(line);
 
-
-
-
-{
-    string lineInfo = line >= 0 ? " " + tostring(line) : "";
-    if (lineInfo.Length == 2) lineInfo += "  ";
-    else if (lineInfo.Length == 3) lineInfo += " ";
-
-    if (_fnName.Length > logging::S_maxFunctionNameLength) { _fnName = _fnName.SubStr(0, logging::S_maxFunctionNameLength); }
-    while (_fnName.Length < logging::S_maxFunctionNameLength) { _fnName += " "; }
-    if (!logging::S_showFunctionNameInLogs) _fnName = "";
+    string fnName = _fnName;
+    if (!logging::S_showFunctionNameInLogs) {
+        fnName = "";
+    } else if (fnName.Length > logging::S_maxFunctionNameLength) {
+        fnName = fnName.SubStr(0, logging::S_maxFunctionNameLength);
+    }
 
     array<string> tags =   { "\\$0ff[DEBUG]  ", "\\$0f0[INFO]   ", "\\$0ff[NOTICE] ", "\\$ff0[WARN]   ", "\\$f00[ERROR]  ", "\\$f00\\$o\\$i\\$w[CRITICAL] " };
     array<string> bodies = { "\\$0cc",          "\\$0c0",          "\\$0cc",          "\\$cc0",          "\\$c00",          "\\$f00\\$o\\$i\\$w" };
@@ -192,17 +207,19 @@ void log(const string &in msg, LogLevel level     = LogLevel::Info, 168, "Unknow
         body   = bodies[int(level)];
     }
 
-    string full = prefix + "\\$z" + body + lineInfo + " : " + _fnName + " : \\$z" + msg;
+    string meta = "";
+    if (lineInfo.Length > 0) meta = lineInfo;
+    if (fnName.Length > 0) {
+        if (meta.Length > 0) meta += " ";
+        meta += fnName;
+    }
+    if (meta.Length > 0) meta = " " + meta + " : ";
+
+    string full = prefix + "\\$z" + body + meta + "\\$z" + msg;
 
     string ts = Time::FormatString("%Y-%m-%d %H:%M:%S  ");
-    logging::AppendToDiagFile(ts + Text::StripOpenplanetFormatCodes(full));
-
-    array<bool> enabled = {
-        logging::DEV_S_sDebug, logging::DEV_S_sInfo,  logging::DEV_S_sNotice,
-        logging::DEV_S_sWarn,  logging::DEV_S_sError, logging::DEV_S_sCritical
-    };
-    if (level != LogLevel::Custom && !enabled[int(level)]) return;
-    if (level == LogLevel::Custom && !logging::DEV_S_sCustom) return;
+    if (writeFile) logging::AppendToDiagFile(ts + Text::StripOpenplanetFormatCodes(full));
+    if (!showConsole) return;
 
     if (logging::S_showDefaultLogs && level != LogLevel::Custom) {
         switch (level) {

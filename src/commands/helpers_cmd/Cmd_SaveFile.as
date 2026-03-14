@@ -1,61 +1,6 @@
 namespace automata { namespace Helpers { namespace SaveFile {
 
-bool _ReadBoolArg(Json::Value@ args, const string &in key, bool defVal) {
-    if (args is null || !args.HasKey(key)) return defVal;
-    auto v = args[key];
-    auto t = v.GetType();
-    if (t == Json::Type::Boolean) return bool(v);
-    if (t == Json::Type::String) {
-        string s = string(v).ToLower().Trim();
-        if (s == "true" || s == "1" || s == "yes" || s == "y" || s == "on")  return true;
-        if (s == "false"|| s == "0" || s == "no"  || s == "n" || s == "off") return false;
-        return defVal;
-    }
-    
-    try { return int(v) != 0; } catch {}
-    try { return float(v) != 0.0f; } catch {}
-    return defVal;
-}
-
-string _ReadStrArg(Json::Value@ args, const string &in key, const string &in defVal) {
-    if (args is null || !args.HasKey(key)) return defVal;
-    auto v = args[key];
-    if (v.GetType() == Json::Type::String) return string(v);
-    try { return string(v); } catch {}
-    return defVal;
-}
-
-string _ReadLowerStrArg(Json::Value@ args, const string &in key, const string &in defVal) {
-    string s = _ReadStrArg(args, key, defVal);
-    return s.ToLower().Trim();
-}
-
-bool _IsHex(const string &in ch) {
-    string c = ch.ToLower();
-    return (c >= "0" && c <= "9") || (c >= "a" && c <= "f");
-}
-
-string _StripTmFormatting(const string &in s) {
-    string outS = "";
-    int i = 0;
-    while (i < int(s.Length)) {
-        string ch = s.SubStr(i, 1);
-        if (ch == "$") {
-            if (i + 1 < int(s.Length) && s.SubStr(i + 1, 1) == "$") {
-                outS += "$"; i += 2; continue;
-            }
-            int j = i + 1, hexCount = 0;
-            while (j < int(s.Length) && hexCount < 3 && _IsHex(s.SubStr(j, 1))) { ++j; ++hexCount; }
-            if (hexCount > 0) { i = j; continue; }
-            i += 1; if (i < int(s.Length)) i += 1; continue;
-        }
-        outS += ch; ++i;
-    }
-    return outS;
-}
-
 string _SanitizeSuffixForFile(const string &in nm) {
-    
     string outS = "";
     for (int i = 0; i < nm.Length; ++i) {
         string ch = nm.SubStr(i, 1);
@@ -135,7 +80,7 @@ string TailFromCanonical(const string &in canonical) {
 
 string GetCanonicalForBlockName(const string &in rawName) {
     CGameCtnBlockInfo@ info; string canonical; string err;
-    string clean = _StripTmFormatting(rawName).Trim();
+    string clean = Text::StripFormatCodes(rawName).Trim();
     if (automata::Helpers::Blocks::TryFindBlockInfoByName(clean, info, canonical, err)) {
         return canonical;
     }
@@ -201,16 +146,13 @@ void _SelectInventoryNoLeafAndLeaf(FlowRun@ run, Json::Value@ args,
 {
     invNoLeaf = ""; invSource = ""; canonicalUsed = "";
 
-    string srcName = _StripTmFormatting(rawSrcName).Trim();
+    string srcName = Text::StripFormatCodes(rawSrcName).Trim();
 
     string canonical = GetCanonicalForBlockName(srcName);
     canonicalUsed = canonical;
     leafName = canonical.Length > 0 ? _LeafFromCanonical(canonical) : srcName;
 
-    string invPath = _ReadStrArg(args, "inventoryPath", "");
-    if (invPath.Length == 0) invPath = _ReadStrArg(args, "invPath", "");
-    if (invPath.Length == 0) invPath = _ReadStrArg(args, "inventoryTail", "");
-    if (invPath.Length == 0) invPath = _ReadStrArg(args, "inventoryRelDir", "");
+    string invPath = Helpers::Args::ReadFirstStr(args, {"inventoryPath", "invPath", "inventoryTail", "inventoryRelDir"}, "");
     if (invPath.Length > 0) {
         invNoLeaf = _MaybeStripLeaf(invPath, leafName);
         invSource = "args";
@@ -292,7 +234,7 @@ namespace SavePaths {
 
     bool TryGetCanonicalForName(const string &in nm, string &out canonical) {
         CGameCtnBlockInfo@ info; string canon; string err;
-        string clean = automata::Helpers::SaveFile::_StripTmFormatting(nm).Trim();
+        string clean = Text::StripFormatCodes(nm).Trim();
         if (!automata::Helpers::Blocks::TryFindBlockInfoByName(clean, info, canon, err)) return false;
         canonical = canon;
         return true;
@@ -328,10 +270,7 @@ bool Cmd_SaveFile(FlowRun@ run, Json::Value@ args) {
     
     string invHint = "";
     if (args !is null) {
-        invHint = _ReadStrArg(args, "inventoryRelDir", "");
-        if (invHint.Length == 0) invHint = _ReadStrArg(args, "inventoryPath", "");
-        if (invHint.Length == 0) invHint = _ReadStrArg(args, "invPath", "");
-        if (invHint.Length == 0) invHint = _ReadStrArg(args, "inventoryTail", "");
+        invHint = Helpers::Args::ReadFirstStr(args, {"inventoryRelDir", "inventoryPath", "invPath", "inventoryTail"}, "");
     }
     if (invHint.Length == 0) {
         string t;
@@ -361,9 +300,9 @@ bool Cmd_SaveFile(FlowRun@ run, Json::Value@ args) {
         srcNameRaw = curCanon;
     }
 
-    string srcNameClean = _StripTmFormatting(srcNameRaw).Trim();
+    string srcNameClean = Text::StripFormatCodes(srcNameRaw).Trim();
     
-    string endString = _ReadStrArg(args, "endString", "");
+    string endString = Helpers::Args::ReadStr(args, "endString", "");
     if (endString.Length == 0) { string tmp; if (run.ctx.GetString("endString", tmp)) endString = tmp; }
     endString = _SanitizeSuffixForFile(endString);
     
@@ -374,14 +313,14 @@ bool Cmd_SaveFile(FlowRun@ run, Json::Value@ args) {
     }
     prefix = _NormalizeRel(prefix);
 
-    bool flattenLeafDir    = _ReadBoolArg(args, "flattenLeafDir", true);
-    bool includeCustomRoot = _ReadBoolArg(args, "includeCustomRoot", false);
+    bool flattenLeafDir    = Helpers::Args::ReadBool(args, "flattenLeafDir", true);
+    bool includeCustomRoot = Helpers::Args::ReadBool(args, "includeCustomRoot", false);
     
-    string onExists = _ReadLowerStrArg(args, "onExists", "");
+    string onExists = Helpers::Args::ReadLowerStr(args, "onExists", "");
     if (onExists != "skip" && onExists != "overwrite" && onExists != "suffix") {
-        bool skipIfExists   = _ReadBoolArg(args, "skipIfExists", false);
-        bool overwriteBool  = _ReadBoolArg(args, "overwrite", false);
-        bool avoidOverwrite = _ReadBoolArg(args, "avoidOverwrite", true); 
+        bool skipIfExists   = Helpers::Args::ReadBool(args, "skipIfExists", false);
+        bool overwriteBool  = Helpers::Args::ReadBool(args, "overwrite", false);
+        bool avoidOverwrite = Helpers::Args::ReadBool(args, "avoidOverwrite", true); 
         if (skipIfExists) onExists = "skip";
         else if (overwriteBool) onExists = "overwrite";
         else onExists = avoidOverwrite ? "suffix" : "overwrite";
@@ -440,7 +379,7 @@ bool Cmd_SaveFile(FlowRun@ run, Json::Value@ args) {
 
     if (existsNow) {
         if (onExists == "skip") {
-            log("save_file: skipping existing: " + relBaseNoExt + " (both .Block/.Item checked).", LogLevel::Info, 443, "Cmd_SaveFile");
+            log("save_file: skipping existing: " + relBaseNoExt + " (both .Block/.Item checked).", LogLevel::Info, 407, "Cmd_SaveFile");
             run.ctx.Set("skippedExisting", "1");
             run.ctx.Set("closeActionOnce", "no");
             run.ctx.Set("lastSavedRelNoExt", relBaseNoExt);
@@ -470,15 +409,7 @@ bool Cmd_SaveFile(FlowRun@ run, Json::Value@ args) {
         + "' | relFolder='" + relFolder
         + "' | baseNoExt='" + baseNoExt
         + "' | relBaseNoExt='" + relBaseNoExt
-        + "' | onExists=" + onExists, LogLevel::Info, 465, "Cmd_SaveFile");
-
-
-
-
-
-
-
-
+        + "' | onExists=" + onExists, LogLevel::Info, 429, "Cmd_SaveFile");
 
 
     editorItem.FileSaveAs();

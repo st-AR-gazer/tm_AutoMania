@@ -7,8 +7,6 @@ const string DLG_BASE   = "1/0/2";
 const string DLG_LABEL  = "1/0/2/0";
 const string DLG_BTNS   = "1/0/2/1";   
 
-string _toLower(const string &in s) { return s.ToLower(); }
-
 bool _IsItemEditorOpen(CGameCtnApp@ app) {
     return cast<CGameEditorItem>(app.Editor) !is null;
 }
@@ -51,30 +49,15 @@ bool Cmd_CloseItemEditor(FlowRun@ run, Json::Value@ args) {
         a["action"] = closeOnce;        
         @args = @a;
         run.ctx.Set("closeActionOnce", ""); 
-        log("close_item_editor: using one-shot close override: '" + closeOnce + "'", LogLevel::Info, 54, "Cmd_CloseItemEditor");
+        log("close_item_editor: using one-shot close override: '" + closeOnce + "'", LogLevel::Info, 52, "Cmd_CloseItemEditor");
     }
 
-    string action = "yes";
-    if (args !is null && args.HasKey("action")) action = string(args["action"]);
-    string actionLower = _toLower(action).Trim();
+    string action = Helpers::Args::ReadStr(args, "action", "yes");
+    string actionLower = action.ToLower().Trim();
     if (actionLower != "yes" && actionLower != "no" && actionLower != "cancel") actionLower = "yes";
 
-    int timeoutMs = 3000;
-    if (args !is null && args.HasKey("timeoutMs")) { try { timeoutMs = int(args["timeoutMs"]); } catch {} }
-
-    bool verifyPrompt = true;
-    if (args !is null && args.HasKey("verifyPrompt")) {
-        auto v = args["verifyPrompt"];
-        auto t = v.GetType();
-        if (t == Json::Type::Boolean) verifyPrompt = bool(v);
-        else if (t == Json::Type::String) {
-            string s = _toLower(string(v)).Trim();
-            if (s == "true" || s == "1" || s == "yes" || s == "y") verifyPrompt = true;
-            else if (s == "false" || s == "0" || s == "no" || s == "n") verifyPrompt = false;
-        } else {
-            try { verifyPrompt = int(v) != 0; } catch {}
-        }
-    }
+    int timeoutMs = Helpers::Args::ReadInt(args, "timeoutMs", 3000);
+    bool verifyPrompt = Helpers::Args::ReadBool(args, "verifyPrompt", true);
 
     CGameCtnApp@ app = GetApp();
     if (!_IsItemEditorOpen(app)) {
@@ -82,7 +65,7 @@ bool Cmd_CloseItemEditor(FlowRun@ run, Json::Value@ args) {
         run.ctx.SetBool("itemEditorClosed", true);
         run.ctx.SetBool("closeDialogShown", false);
         run.ctx.Set("closeDialogChoice", "");
-        log("close_item_editor: Item Editor not open — nothing to do.", LogLevel::Info, 85, "Cmd_CloseItemEditor");
+        log("close_item_editor: Item Editor not open — nothing to do.", LogLevel::Info, 68, "Cmd_CloseItemEditor");
         return true;
     }
     
@@ -105,7 +88,7 @@ bool Cmd_CloseItemEditor(FlowRun@ run, Json::Value@ args) {
         run.ctx.SetBool("itemEditorClosed", closed);
         run.ctx.SetBool("closeDialogShown", false);
         run.ctx.Set("closeDialogChoice", "");
-        log("close_item_editor: No unsaved dialog — closed=" + (closed ? "true" : "false"), LogLevel::Info, 108, "Cmd_CloseItemEditor");
+        log("close_item_editor: No unsaved dialog — closed=" + (closed ? "true" : "false"), LogLevel::Info, 91, "Cmd_CloseItemEditor");
         return true;
     }
 
@@ -113,9 +96,9 @@ bool Cmd_CloseItemEditor(FlowRun@ run, Json::Value@ args) {
     
     if (verifyPrompt) {
         string lbl = UiNav::ReadText(UiNav::ResolvePath(DLG_LABEL, OVL_DLG));
-        string ll  = _toLower(lbl);
+        string ll  = lbl.ToLower();
         if (ll.IndexOf("not saved") < 0 && ll.IndexOf("save it or discard") < 0) {
-            log("close_item_editor: overlay-16 dialog label didn't match expected 'unsaved' prompt. Proceeding anyway.", LogLevel::Warn, 118, "Cmd_CloseItemEditor");
+            log("close_item_editor: overlay-16 dialog label didn't match expected 'unsaved' prompt. Proceeding anyway.", LogLevel::Warn, 101, "Cmd_CloseItemEditor");
 
         }
     }
@@ -141,7 +124,7 @@ bool Cmd_CloseItemEditor(FlowRun@ run, Json::Value@ args) {
     }
     run.ctx.SetBool("itemEditorClosed", closedOut);
 
-    log("close_item_editor: dialog handled -> choice=" + actionLower + " closed=" + (closedOut ? "true" : "false"), LogLevel::Info, 144, "Cmd_CloseItemEditor");
+    log("close_item_editor: dialog handled -> choice=" + actionLower + " closed=" + (closedOut ? "true" : "false"), LogLevel::Info, 127, "Cmd_CloseItemEditor");
 
     return true;
 }

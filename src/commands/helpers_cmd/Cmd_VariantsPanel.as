@@ -13,54 +13,6 @@ class AddStableResult {
     int uniqueGained = 0;
 }
 
-int _ReadIntArg(Json::Value@ args, const string &in key, int def, int minVal, int maxVal) {
-    int ival = def;
-    if (args is null || !args.HasKey(key)) return Math::Clamp(ival, minVal, maxVal);
-    Json::Value@ v = args[key];
-
-    
-    try { ival = int(v); } catch {
-        
-        try {
-            string s = string(v).Trim();
-            if (s.Length > 0) {
-                int tmp; bool ok = false;
-                try { ok = Text::TryParseInt(s, tmp); } catch {}
-                if (ok) ival = tmp;
-                else { try { ival = Text::ParseInt(s); } catch {} }
-            }
-        } catch {
-            
-            try { ival = bool(v) ? 1 : 0; } catch {}
-        }
-    }
-    if (ival < minVal) ival = minVal;
-    if (ival > maxVal) ival = maxVal;
-    return ival;
-}
-
-bool _ReadBoolArg(Json::Value@ args, const string &in key, bool def) {
-    if (args is null || !args.HasKey(key)) return def;
-    Json::Value@ v = args[key];
-    
-    try { return bool(v); } catch {}
-    
-    try { return int(v) != 0; } catch {}
-    
-    try {
-        string s = string(v).ToLower().Trim();
-        if (s == "true" || s == "1" || s == "yes" || s == "y" || s == "on") return true;
-        if (s == "false" || s == "0" || s == "no"  || s == "n"  || s == "off") return false;
-    } catch {}
-    return def;
-}
-
-string _ReadStringArg(Json::Value@ args, const string &in key, const string &in def) {
-    if (args is null || !args.HasKey(key)) return def;
-    try { return string(args[key]); } catch {}
-    return def;
-}
-
 bool _IsUpperAlpha(const string &in ch) {
     return ch == ch.ToUpper() && ch != ch.ToLower();
 }
@@ -79,16 +31,6 @@ void _SplitCamelWords(const string &in s, array<string> &words) {
         }
     }
     if (cur.Length > 0) words.InsertLast(cur);
-}
-
-string _JoinWithSlash(const array<string> &in parts) {
-    if (parts.Length == 0) return "";
-    string res = "";
-    for (int i = 0; i < parts.Length; ++i) {
-        if (i > 0) res += "/";
-        res += parts[i];
-    }
-    return res;
 }
 
 string _StripColorPrefix(const string &in sIn) {
@@ -164,7 +106,7 @@ void _DetermineActiveBase() {
     else if (has1 && has2) _ActiveBase = (r2.Length > r1.Length ? PROP_BASE_CAND2 : PROP_BASE_CAND1);
     else _ActiveBase = PROP_BASE_CAND1;
 
-    log("VariantsPanel: ActiveBase=" + _ActiveBase, LogLevel::Info, 167, "_DetermineActiveBase");
+    log("VariantsPanel: ActiveBase=" + _ActiveBase, LogLevel::Info, 109, "_DetermineActiveBase");
 }
 
 bool _ClickAdd(const string &in basePath) {
@@ -201,7 +143,7 @@ int _DeduplicateRows(const string &in basePath, int maxDeletes = 1024) {
             continue; 
         } else {
             
-            log("variants_add_unique_rows: delete click failed at row ui=" + tostring(dupRowUi) + " path=" + delPath, LogLevel::Warn, 204, "_DeduplicateRows");
+            log("variants_add_unique_rows: delete click failed at row ui=" + tostring(dupRowUi) + " path=" + delPath, LogLevel::Warn, 146, "_DeduplicateRows");
 
             break;
         }
@@ -286,7 +228,7 @@ string _BuildInventorySubpath(const string &in canonical, const string &in env, 
     array<string> parts;
     if (includeInventoryPath) {
         array<string> tokens; _SplitCamelWords(canonical, tokens);
-        string sub = _JoinWithSlash(tokens); 
+        string sub = automata::Helpers::SaveFile::JoinWithSlash(tokens); 
         if (sub.Length > 0) {
             parts.InsertLast(env);
             parts.InsertLast(sub);
@@ -299,17 +241,17 @@ string _BuildInventorySubpath(const string &in canonical, const string &in env, 
         parts.InsertLast(env);
         parts.InsertLast(canonical);
     }
-    return _JoinWithSlash(parts);
+    return automata::Helpers::SaveFile::JoinWithSlash(parts);
 }
 
 string _ComputeSaveLocation(FlowRun@ run, Json::Value@ args) {
-    string explicitPath = _ReadStringArg(args, "saveLocation", "");
+    string explicitPath = Helpers::Args::ReadStr(args, "saveLocation", "");
     if (explicitPath.Length > 0) return explicitPath;
 
-    string root = _ReadStringArg(args, "saveRoot", "Nadeo");
-    string env  = _ReadStringArg(args, "saveEnv",  "Stadium");
-    string ext  = _ReadStringArg(args, "saveExt",  ".Item.Gbx");
-    bool useInv = _ReadBoolArg(args, "saveUseInventoryPath", true);
+    string root = Helpers::Args::ReadStr(args, "saveRoot", "Nadeo");
+    string env  = Helpers::Args::ReadStr(args, "saveEnv",  "Stadium");
+    string ext  = Helpers::Args::ReadStr(args, "saveExt",  ".Item.Gbx");
+    bool useInv = Helpers::Args::ReadBool(args, "saveUseInventoryPath", true);
 
     string canonical = _GetCanonicalFromCtxOrBlockIndex(run);
     if (canonical.Length == 0) canonical = "UnknownBlock";
@@ -375,10 +317,10 @@ bool Cmd_VariantsAddUniqueRows(FlowRun@ run, Json::Value@ args) {
     _DetermineActiveBase();
     string basePath = _ActiveBase;
 
-    int  maxAdd       = _ReadIntArg(args, "maxAddClicks",   64, 0, 1024);
-    int  stabilizeTr  = _ReadIntArg(args, "stabilizeTries",  3, 1, 10);
-    int  maxTotalRows = _ReadIntArg(args, "maxTotalRows",  256, 8, 4096);
-    bool dedupe       = _ReadBoolArg(args, "dedupe", true);
+    int  maxAdd       = Helpers::Args::ReadIntClamped(args, "maxAddClicks",   64, 0, 1024);
+    int  stabilizeTr  = Helpers::Args::ReadIntClamped(args, "stabilizeTries",  3, 1, 10);
+    int  maxTotalRows = Helpers::Args::ReadIntClamped(args, "maxTotalRows",  256, 8, 4096);
+    bool dedupe       = Helpers::Args::ReadBool(args, "dedupe", true);
 
     AddStableResult res = _AddUntilStable(basePath, maxAdd, stabilizeTr, 3, maxTotalRows);
     int addClicks = res.addClicks;
@@ -406,7 +348,11 @@ bool Cmd_VariantsAddUniqueRows(FlowRun@ run, Json::Value@ args) {
         + " addClicks=" + tostring(addClicks)
         + " uniqueGained=" + tostring(uniqGain)
         + " deletedDups=" + tostring(deleted)
-        + " base=" + basePath, LogLevel::Info, 405, "Cmd_VariantsAddUniqueRows");
+        + " base=" + basePath, LogLevel::Info, 347, "Cmd_VariantsAddUniqueRows");
+
+
+
+
 
 
 
@@ -425,21 +371,21 @@ bool Cmd_VariantsVisitAll(FlowRun@ run, Json::Value@ args) {
     _DetermineActiveBase();
     string basePath = _ActiveBase;
 
-    string mode        = _ReadStringArg(args, "mode", "block-to-block");
-    int openDelay      = _ReadIntArg(args, "openDelayFrames", 1, 0, 60);
-    int exitDelay      = _ReadIntArg(args, "exitDelayFrames", 0, 0, 60);
-    int maxExitPerOpen = _ReadIntArg(args, "maxExitAttemptsPerVariant", 6, 1, 50);
-    bool closeAfter    = _ReadBoolArg(args, "closeAllAfterLoop", true);
-    bool skipBroken    = _ReadBoolArg(args, "skipBrokenVariants", false);
-    bool saveAfter     = _ReadBoolArg(args, "saveAfter", false);
-    string saveScope   = _ReadStringArg(args, "saveScope", "item_editor");
-    string endString   = _ReadStringArg(args, "saveEndString", "");
+    string mode        = Helpers::Args::ReadStr(args, "mode", "block-to-block");
+    int openDelay      = Helpers::Args::ReadIntClamped(args, "openDelayFrames", 1, 0, 60);
+    int exitDelay      = Helpers::Args::ReadIntClamped(args, "exitDelayFrames", 0, 0, 60);
+    int maxExitPerOpen = Helpers::Args::ReadIntClamped(args, "maxExitAttemptsPerVariant", 6, 1, 50);
+    bool closeAfter    = Helpers::Args::ReadBool(args, "closeAllAfterLoop", true);
+    bool skipBroken    = Helpers::Args::ReadBool(args, "skipBrokenVariants", false);
+    bool saveAfter     = Helpers::Args::ReadBool(args, "saveAfter", false);
+    string saveScope   = Helpers::Args::ReadStr(args, "saveScope", "item_editor");
+    string endString   = Helpers::Args::ReadStr(args, "saveEndString", "");
 
     array<int> rows; array<string> keys;
     _ScanRowsAtBase(basePath, rows, keys);
     int count = int(rows.Length);
     if (count <= 0) {
-        log("variants_visit_all: no variant rows to visit.", LogLevel::Info, 438, "Cmd_VariantsVisitAll");
+        log("variants_visit_all: no variant rows to visit.", LogLevel::Info, 384, "Cmd_VariantsVisitAll");
         
         if (saveAfter) {
             string saveLoc0 = _ComputeSaveLocation(run, args);
@@ -452,7 +398,7 @@ bool Cmd_VariantsVisitAll(FlowRun@ run, Json::Value@ args) {
             sa0["ensureDirs"] = true;
             if (endString.Length > 0) sa0["endString"] = endString;
             bool s0 = automata::gCmds.Execute("save_file", run, sa0);
-            log("variants_visit_all: save_after(no-rows) -> " + (s0 ? "OK" : "FAILED"), s0 ? LogLevel::Info : LogLevel::Warn, 451, "Cmd_VariantsVisitAll");
+            log("variants_visit_all: save_after(no-rows) -> " + (s0 ? "OK" : "FAILED"), s0 ? LogLevel::Info : LogLevel::Warn, 397, "Cmd_VariantsVisitAll");
         }
         return true;
     }
@@ -465,7 +411,7 @@ bool Cmd_VariantsVisitAll(FlowRun@ run, Json::Value@ args) {
             string k = keys.Length > i ? keys[i] : "";
             if (_IsBrokenVariantKey(k)) {
                 skippedBroken++;
-                log("variants_visit_all: skipping broken variant '" + k + "' (index " + tostring(i) + ")", LogLevel::Info, 464, "Cmd_VariantsVisitAll");
+                log("variants_visit_all: skipping broken variant '" + k + "' (index " + tostring(i) + ")", LogLevel::Info, 410, "Cmd_VariantsVisitAll");
                 continue;
             }
         }
@@ -476,7 +422,7 @@ bool Cmd_VariantsVisitAll(FlowRun@ run, Json::Value@ args) {
         oa["prefer"]       = "auto";
 
         if (!automata::Helpers::OpenMeshModeller::Cmd_OpenMeshModeller(run, oa)) {
-            log("variants_visit_all: failed to open mesh modeller for variant #" + tostring(i), LogLevel::Warn, 475, "Cmd_VariantsVisitAll");
+            log("variants_visit_all: failed to open mesh modeller for variant #" + tostring(i), LogLevel::Warn, 421, "Cmd_VariantsVisitAll");
             continue;
         }
 
@@ -486,7 +432,7 @@ bool Cmd_VariantsVisitAll(FlowRun@ run, Json::Value@ args) {
         
         bool back = _EnsureBackToItemEditor(run, basePath, maxExitPerOpen, 500);
         if (!back) {
-            log("variants_visit_all: could not return to Item Editor after variant #" + tostring(i) + " — attempting to continue", LogLevel::Warn, 485, "Cmd_VariantsVisitAll");
+            log("variants_visit_all: could not return to Item Editor after variant #" + tostring(i) + " — attempting to continue", LogLevel::Warn, 431, "Cmd_VariantsVisitAll");
         }
 
         yield(exitDelay);
@@ -495,13 +441,13 @@ bool Cmd_VariantsVisitAll(FlowRun@ run, Json::Value@ args) {
     if (closeAfter) {
         bool backAll = _EnsureBackToItemEditor(run, basePath, Math::Max(10, count * 2), 500);
         if (!backAll) {
-            log("variants_visit_all: WARNING — final ensure-back did not confirm Item Editor UI.", LogLevel::Warn, 494, "Cmd_VariantsVisitAll");
+            log("variants_visit_all: WARNING — final ensure-back did not confirm Item Editor UI.", LogLevel::Warn, 440, "Cmd_VariantsVisitAll");
         }
     }
 
     int deletedAfter = _DeduplicateRows(basePath, 1024);
     if (deletedAfter > 0) {
-        log("variants_visit_all: post-visit dedupe removed " + tostring(deletedAfter) + " row(s).", LogLevel::Info, 500, "Cmd_VariantsVisitAll");
+        log("variants_visit_all: post-visit dedupe removed " + tostring(deletedAfter) + " row(s).", LogLevel::Info, 446, "Cmd_VariantsVisitAll");
     }
     
     if (saveAfter) {
@@ -516,12 +462,12 @@ bool Cmd_VariantsVisitAll(FlowRun@ run, Json::Value@ args) {
         if (endString.Length > 0) sa["endString"] = endString;
 
         bool saved = automata::gCmds.Execute("save_file", run, sa);
-        log("variants_visit_all: save_after -> " + (saved ? "OK" : "FAILED"), saved ? LogLevel::Info : LogLevel::Warn, 515, "Cmd_VariantsVisitAll");
+        log("variants_visit_all: save_after -> " + (saved ? "OK" : "FAILED"), saved ? LogLevel::Info : LogLevel::Warn, 461, "Cmd_VariantsVisitAll");
     }
 
     string extra = "";
     if (skipBroken) extra = " (skippedBroken=" + tostring(skippedBroken) + ")";
-    log("variants_visit_all: visited " + tostring(visited) + " variant(s)" + extra + ".", LogLevel::Info, 520, "Cmd_VariantsVisitAll");
+    log("variants_visit_all: visited " + tostring(visited) + " variant(s)" + extra + ".", LogLevel::Info, 466, "Cmd_VariantsVisitAll");
     return true;
 }
 

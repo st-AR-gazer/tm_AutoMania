@@ -15,9 +15,9 @@ namespace UiNav {
         string t = ReadText(n);
         if (t.Length > 0) {
             string shortT = t; if (shortT.Length > 160) shortT = shortT.SubStr(0, 160) + "...";
-            trace(path + " : " + NodeTypeName(n) + " : \"" + CleanUiFormatting(shortT) + "\"");
+            log(path + " : " + NodeTypeName(n) + " : \"" + CleanUiFormatting(shortT) + "\"", LogLevel::Debug, 18, "_DumpSubtree");
         } else {
-            trace(path + " : " + NodeTypeName(n));
+            log(path + " : " + NodeTypeName(n), LogLevel::Debug, 20, "_DumpSubtree");
         }
 
         uint len = _ChildrenLen(n);
